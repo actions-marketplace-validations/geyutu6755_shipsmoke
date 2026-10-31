@@ -97,7 +97,9 @@ func TestExtractZipTraversal(t *testing.T) {
 	for _, name := range []string{
 		"../evil.txt",
 		"a/../../evil.txt",
-		"....//evil.txt",
+		// "....//evil.txt" is contained on Unix (a literal directory named
+		// "....") and rejected on Windows (trailing dots) — not traversal.
+		"....//../evil.txt",
 		"sub/../../../evil.txt",
 	} {
 		t.Run(name, func(t *testing.T) {
