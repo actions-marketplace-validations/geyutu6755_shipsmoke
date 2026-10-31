@@ -95,13 +95,15 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="v0.0.0-ci"
-          go build -trimpath -ldflags "-s -w -X main.version=$VERSION -X main.commit=${GITHUB_SHA::7}" -o shipsmoke ./cmd/shipsmoke
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          go build -trimpath -ldflags "-s -w -X main.version=$VERSION -X main.commit=${GITHUB_SHA::7}" -o "shipsmoke$EXE" ./cmd/shipsmoke
           mkdir -p dist/pkg/shipsmoke
           if [ "${{ matrix.pkg }}" = "zip" ]; then
-            cp shipsmoke.exe dist/pkg/shipsmoke/
+            cp "shipsmoke$EXE" dist/pkg/shipsmoke/
             powershell -Command "Compress-Archive -Path dist/pkg/shipsmoke -DestinationPath dist/shipsmoke_windows_amd64.zip -Force"
           else
-            cp shipsmoke dist/pkg/shipsmoke/
+            cp "shipsmoke$EXE" dist/pkg/shipsmoke/
             tar -czf dist/shipsmoke_$(echo ${{ matrix.target }} | tr '/' '_').tar.gz -C dist/pkg shipsmoke
           fi
 
@@ -109,8 +111,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN="./shipsmoke"
-          [ -x "$BIN" ] || BIN="./shipsmoke.exe"
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          BIN="./shipsmoke$EXE"
           case "${{ matrix.os }}" in
             ubuntu-*) cfg_target="linux/amd64"; name="linux-amd64";;
             macos-*) cfg_target="darwin/arm64"; name="darwin-arm64";;

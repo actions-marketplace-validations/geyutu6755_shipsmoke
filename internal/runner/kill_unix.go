@@ -3,7 +3,6 @@
 package runner
 
 import (
-	"context"
 	"errors"
 	"os/exec"
 	"syscall"

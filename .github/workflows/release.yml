@@ -96,7 +96,9 @@ jobs:
             exit 0
           fi
           # Build shipsmoke from source on the host and verify the packaged artifact.
-          go build -o verifier ./cmd/shipsmoke
+          HEXE=""
+          [ "$GOOS" = "windows" ] && HEXE=".exe"
+          go build -o "verifier$HEXE" ./cmd/shipsmoke
           ENTRY="shipsmoke"
           [ "$GOOS" = "windows" ] && ENTRY="shipsmoke.exe"
           EXT="tar.gz"
@@ -114,7 +116,7 @@ jobs:
                     exit_code: 0
                     stdout_contains: ["${{ steps.ver.outputs.version }}"]
           EOF
-          ./verifier check --config .shipsmoke-release.yml
+          ./verifier$HEXE check --config .shipsmoke-release.yml
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
