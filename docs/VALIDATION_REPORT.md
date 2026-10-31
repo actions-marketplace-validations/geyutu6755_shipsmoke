@@ -90,15 +90,19 @@ ubuntu-24.04, macos-15 (arm64), and windows-2025:
 | v1.0.0 tag pushed | tag on commit 9cda5f2 |
 | Release workflow green (6 build jobs + publish) | https://github.com/geyutu6755/shipsmoke/actions/runs/41226680894 |
 | Release published | https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.0 |
+| v1.0.1 release (go-install version reporting fix) | https://github.com/geyutu6755/shipsmoke/actions/runs/41227510659 → https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.1 |
+| go install path verified | `go install github.com/geyutu6755/shipsmoke/cmd/shipsmoke@v1.0.1` → binary reports `shipsmoke v1.0.1 (windows/amd64)` |
 | Assets (7) | checksums.txt + 6 platform archives: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64 (tar.gz), windows/amd64, windows/arm64 (zip) |
 | Pre-publish execution gate | Build jobs verified host-matching artifacts with shipsmoke before the release job ran (cross targets skipped with explicit log line) |
 | checksums.txt verified | downloaded locally; `sha256sum -c` → `shipsmoke_windows_amd64.zip: OK` |
 | Release binary downloaded and run | `shipsmoke version` → `shipsmoke v1.0.0 (windows/amd64)`, commit 9cda5f2, built 2026-10-31T17:53:43Z |
-| Released binary verifies its own released artifact | `shipsmoke check` on the downloaded zip → 2 passed → PASS, exit 0 |
+| Released binary verifies its own released artifact | v1.0.0: 2 passed → PASS; v1.0.1: `sha256sum -c` OK, downloaded binary reports v1.0.1 and verifies its own zip → PASS, exit 0 |
 
 ## 7. Final acceptance conclusion
 
-**ACCEPTED — ShipSmoke v1.0.0 is released and verified.**
+**ACCEPTED — ShipSmoke v1.0.1 (current release) is released and verified.**
+v1.0.0 shipped the complete feature set; v1.0.1 fixed version reporting
+under `go install` and was verified with the same gates.
 
 Checked against the completion criteria:
 
