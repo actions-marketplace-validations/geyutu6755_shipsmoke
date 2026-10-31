@@ -5,7 +5,7 @@ covers the essentials; the project values small, well-tested changes.
 
 ## Development setup
 
-Requirements: Go 1.24+ (any platform), git. No other toolchain needed — test
+Requirements: Go 1.26+ (any platform), git. No other toolchain needed — test
 fixtures are cross-compiled with the local Go toolchain inside the tests.
 
 ```bash
