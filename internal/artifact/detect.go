@@ -19,10 +19,10 @@ import (
 type Format string
 
 const (
-	FormatZip    Format = "zip"
-	FormatTarGz  Format = "tar.gz"
-	FormatBinary Format = "binary"
-	FormatTar    Format = "tar"
+	FormatZip     Format = "zip"
+	FormatTarGz   Format = "tar.gz"
+	FormatBinary  Format = "binary"
+	FormatTar     Format = "tar"
 	FormatUnknown Format = "unknown"
 )
 
