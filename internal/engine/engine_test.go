@@ -40,7 +40,7 @@ func TestEndToEndZipPass(t *testing.T) {
 	}
 	archive := filepath.Join(dir, "tool.zip")
 	testfixture.BuildZip(t, archive, []testfixture.ZipEntry{
-		{Name: "bin/" + fixtureName(), Data: bin},
+		{Name: "bin/" + fixtureName(), Data: bin, Mode: 0o755, SetMode: true},
 		{Name: "README.md", Data: []byte("readme")},
 	})
 	cfg := buildConfig(t, dir, []config.Artifact{{
@@ -119,7 +119,7 @@ func TestEndToEndMultipleArtifacts(t *testing.T) {
 	bin, _ := os.ReadFile(testfixture.HostBinary(t))
 	name := fixtureName()
 	archive := filepath.Join(dir, "tool.zip")
-	testfixture.BuildZip(t, archive, []testfixture.ZipEntry{{Name: name, Data: bin}})
+	testfixture.BuildZip(t, archive, []testfixture.ZipEntry{{Name: name, Data: bin, Mode: 0o755, SetMode: true}})
 	standalone := filepath.Join(dir, name)
 	mode := os.FileMode(0o755)
 	if runtime.GOOS == "windows" {
