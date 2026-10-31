@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-11-01
+
+### Fixed
+
+- `go install github.com/geyutu6755/shipsmoke/cmd/shipsmoke@vX.Y.Z` now
+  reports the installed module version instead of `0.0.0-dev` (version is
+  read from build info when ldflags are absent).
+
 ## [1.0.0] - 2026-11-01
 
 First stable release.
