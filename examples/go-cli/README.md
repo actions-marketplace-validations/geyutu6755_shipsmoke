@@ -2,7 +2,7 @@
 
 Demonstrates shipsmoke as a release quality gate for a Go CLI (`gokit`).
 
-The CI workflow (`.github/workflows/ci.yml`):
+The CI workflow (`.github/workflows/example-go-cli.yml` at the repository root — GitHub only registers workflows from the root `.github/workflows/`):
 
 1. builds `shipsmoke` itself from the checkout,
 2. builds `gokit` and packages it — `tar.gz` on Linux/macOS, `zip` on Windows,
