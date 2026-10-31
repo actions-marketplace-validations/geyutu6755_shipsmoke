@@ -1,0 +1,26 @@
+# Verifies the rustkit release artifact (see go-cli for a commented config).
+version: 1
+
+report:
+  json: dist/shipsmoke-report.json
+
+artifacts:
+  - name: rustkit-unix
+    path: dist/rustkit.tar.gz
+    binary: rustkit
+    runs_on: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64]
+    checks:
+      - args: ["--version"]
+        expect:
+          exit_code: 0
+          stdout_contains: ["rustkit version 1.0.0"]
+
+  - name: rustkit-windows
+    path: dist/rustkit.zip
+    binary: rustkit.exe
+    runs_on: [windows/amd64, windows/arm64]
+    checks:
+      - args: ["--version"]
+        expect:
+          exit_code: 0
+          stdout_contains: ["rustkit version 1.0.0"]

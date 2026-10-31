@@ -1,0 +1,31 @@
+# Verifies the gokit release artifact on whatever runner this runs.
+# On unix targets the tar.gz runs; on windows the zip runs. The other
+# artifact is reported as SKIP with a reason — never silently ignored.
+version: 1
+
+report:
+  json: dist/shipsmoke-report.json
+
+artifacts:
+  - name: gokit-unix
+    path: dist/gokit.tar.gz
+    binary: gokit
+    runs_on: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64]
+    checks:
+      - args: ["--version"]
+        expect:
+          exit_code: 0
+          stdout_contains: ["gokit version 1.0.0"]
+      - args: ["--help"]
+        expect:
+          exit_code: 0
+
+  - name: gokit-windows
+    path: dist/gokit.zip
+    binary: gokit.exe
+    runs_on: [windows/amd64, windows/arm64]
+    checks:
+      - args: ["--version"]
+        expect:
+          exit_code: 0
+          stdout_contains: ["gokit version 1.0.0"]

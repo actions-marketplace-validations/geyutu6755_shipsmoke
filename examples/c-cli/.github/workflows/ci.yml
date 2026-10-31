@@ -1,0 +1,64 @@
+name: example-c-cli
+
+on:
+  push:
+    branches: [main]
+    paths: ["examples/c-cli/**", "internal/**", "cmd/**"]
+  pull_request:
+    paths: ["examples/c-cli/**", "internal/**", "cmd/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build + shipsmoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: macos-15
+          - os: windows-2025
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build example tool, package it, verify with shipsmoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          BIN="$RUNNER_TEMP/shipsmoke$EXE"
+
+          # 1. shipsmoke itself, from this checkout
+          go build -o "$BIN" ./cmd/shipsmoke
+
+          # 2. the example tool (C compiler)
+          cd examples/c-cli
+          mkdir -p dist
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            gcc -O2 -o dist/ckit.exe ckit.c
+            powershell -Command "Compress-Archive -Path dist/ckit.exe -DestinationPath dist/ckit.zip -Force"
+          else
+            cc -O2 -o dist/ckit ckit.c
+            tar -czf dist/ckit.tar.gz -C dist ckit
+          fi
+
+          # 3. the release quality gate
+          "$BIN" check --config .shipsmoke.yml
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-cli-report-${{ matrix.os }}
+          path: examples/c-cli/dist/shipsmoke-report.json
+          if-no-files-found: ignore

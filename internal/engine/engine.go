@@ -245,16 +245,25 @@ func platformDiagnosis(art config.Artifact, bi artifact.BinaryInfo) string {
 		return fmt.Sprintf("platform mismatch: this artifact runs %s binaries but the binary header says %s; host is %s. The check cannot run here — verify this artifact on the right runner.",
 			host, bi.OS+"/"+bi.Arch, host)
 	}
-	// Declared runs_on vs binary reality.
+	// Declared runs_on vs binary reality: at least one declared platform
+	// must match what the header says. Artifacts may declare several
+	// targets legitimately (e.g. windows/amd64 binaries run under
+	// emulation on windows/arm64), so only a total mismatch is an error.
 	if bi.Known() && len(art.RunsOn) > 0 {
+		anyMatch := false
 		for _, spec := range art.RunsOn {
 			if spec == "any" {
+				anyMatch = true
 				continue
 			}
 			parts := strings.SplitN(spec, "/", 2)
-			if len(parts) == 2 && (parts[0] != bi.OS || parts[1] != bi.Arch) {
-				return fmt.Sprintf("declaration mismatch: runs_on says %q but the binary header identifies %s", spec, bi.OS+"/"+bi.Arch)
+			if len(parts) == 2 && parts[0] == bi.OS && parts[1] == bi.Arch {
+				anyMatch = true
 			}
+		}
+		if !anyMatch {
+			return fmt.Sprintf("declaration mismatch: runs_on says [%s] but the binary header identifies %s",
+				strings.Join(art.RunsOn, ", "), bi.OS+"/"+bi.Arch)
 		}
 	}
 	return ""

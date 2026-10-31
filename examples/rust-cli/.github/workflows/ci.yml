@@ -1,0 +1,65 @@
+name: example-rust-cli
+
+on:
+  push:
+    branches: [main]
+    paths: ["examples/rust-cli/**", "internal/**", "cmd/**"]
+  pull_request:
+    paths: ["examples/rust-cli/**", "internal/**", "cmd/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build + shipsmoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: macos-15
+          - os: windows-2025
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build example tool, package it, verify with shipsmoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          BIN="$RUNNER_TEMP/shipsmoke$EXE"
+
+          # 1. shipsmoke itself, from this checkout
+          go build -o "$BIN" ./cmd/shipsmoke
+
+          # 2. the example tool (cargo)
+          cd examples/rust-cli
+          mkdir -p dist
+          cargo build --release
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp target/release/rustkit.exe dist/rustkit.exe
+            powershell -Command "Compress-Archive -Path dist/rustkit.exe -DestinationPath dist/rustkit.zip -Force"
+          else
+            cp target/release/rustkit dist/rustkit
+            tar -czf dist/rustkit.tar.gz -C dist rustkit
+          fi
+
+          # 3. the release quality gate
+          "$BIN" check --config .shipsmoke.yml
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-cli-report-${{ matrix.os }}
+          path: examples/rust-cli/dist/shipsmoke-report.json
+          if-no-files-found: ignore

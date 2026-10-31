@@ -1,0 +1,61 @@
+{
+  "shipsmoke_version": "0.0.0-dev",
+  "config_path": ".shipsmoke.yml",
+  "started_at": "2026-10-31T17:15:24Z",
+  "duration_ms": 336,
+  "host_os": "windows",
+  "host_arch": "amd64",
+  "artifacts": [
+    {
+      "name": "gokit-unix",
+      "path": "dist/gokit.tar.gz",
+      "format": "auto",
+      "decision": "skipped",
+      "skip_reason": "artifact targets [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64] but host is windows/amd64",
+      "runs_on": [
+        "linux/amd64",
+        "linux/arm64",
+        "darwin/amd64",
+        "darwin/arm64"
+      ],
+      "checks": []
+    },
+    {
+      "name": "gokit-windows",
+      "path": "dist/gokit.zip",
+      "format": "zip",
+      "decision": "ran",
+      "detected_os": "windows",
+      "detected_arch": "amd64",
+      "runs_on": [
+        "windows/amd64",
+        "windows/arm64"
+      ],
+      "extracted_files": 1,
+      "checks": [
+        {
+          "index": 1,
+          "name": "check #1: gokit.exe --version",
+          "status": "PASS",
+          "args": [
+            "--version"
+          ],
+          "expected_exit_code": 0,
+          "exit_code": 0,
+          "stdout": "gokit version 1.0.0\n",
+          "duration_ms": 155,
+          "reproduce_command": "shipsmoke check --config .shipsmoke.yml --artifact gokit-windows  # check args: --version"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 1,
+    "errored": 0,
+    "executed": 1,
+    "overall": "PASS"
+  },
+  "exit_code": 0
+}

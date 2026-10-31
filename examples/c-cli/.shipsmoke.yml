@@ -1,0 +1,26 @@
+# Verifies the ckit release artifact.
+version: 1
+
+report:
+  json: dist/shipsmoke-report.json
+
+artifacts:
+  - name: ckit-unix
+    path: dist/ckit.tar.gz
+    binary: ckit
+    runs_on: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64]
+    checks:
+      - args: ["--version"]
+        expect:
+          exit_code: 0
+          stdout_contains: ["ckit version 1.0.0"]
+
+  - name: ckit-windows
+    path: dist/ckit.zip
+    binary: ckit.exe
+    runs_on: [windows/amd64, windows/arm64]
+    checks:
+      - args: ["--version"]
+        expect:
+          exit_code: 0
+          stdout_contains: ["ckit version 1.0.0"]
