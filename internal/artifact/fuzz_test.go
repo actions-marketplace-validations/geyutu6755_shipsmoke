@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/geyutu6755/shipsmoke/internal/testfixture"
 )
 
 // FuzzExtractTarGz hammers the tar.gz extractor with arbitrary bytes; it must
@@ -12,9 +14,9 @@ func FuzzExtractTarGz(f *testing.F) {
 	// Seeds: valid tar.gz, truncated, non-gzip.
 	dir := f.TempDir()
 	good := filepath.Join(dir, "good.tar.gz")
-	buildTarGz(f, good, []tarEntry{
-		{name: "a.txt", data: []byte("hello hello hello")},
-		{name: "d/b.txt", data: []byte("nested")},
+	testfixture.BuildTarGz(f, good, []testfixture.TarEntry{
+		{Name: "a.txt", Data: []byte("hello hello hello")},
+		{Name: "d/b.txt", Data: []byte("nested")},
 	})
 	if seed, err := os.ReadFile(good); err == nil {
 		f.Add(seed)
@@ -46,9 +48,9 @@ func FuzzExtractTarGz(f *testing.F) {
 func FuzzExtractZip(f *testing.F) {
 	dir := f.TempDir()
 	good := filepath.Join(dir, "good.zip")
-	buildZip(f, good, []zipEntry{
-		{name: "a.txt", data: []byte("hello hello hello")},
-		{name: "d/b.txt", data: []byte("nested")},
+	testfixture.BuildZip(f, good, []testfixture.ZipEntry{
+		{Name: "a.txt", Data: []byte("hello hello hello")},
+		{Name: "d/b.txt", Data: []byte("nested")},
 	})
 	if seed, err := os.ReadFile(good); err == nil {
 		f.Add(seed)

@@ -2,8 +2,6 @@ package artifact
 
 import (
 	"archive/tar"
-	"archive/zip"
-	"compress/gzip"
 	"errors"
 	"fmt"
 	"os"
@@ -20,93 +18,6 @@ func defaultLimits() Limits {
 		MaxTotalSize:        64 << 20,
 		MaxFileSize:         16 << 20,
 		MaxCompressionRatio: 100,
-	}
-}
-
-// --- archive builders (all archives are constructed in-test) ---
-
-type zipEntry struct {
-	name     string
-	data     []byte
-	mode     os.FileMode
-	modified bool
-}
-
-func buildZip(t testing.TB, path string, entries []zipEntry) {
-	t.Helper()
-	f, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	zw := zip.NewWriter(f)
-	for _, e := range entries {
-		fh := &zip.FileHeader{Name: e.name, Method: zip.Deflate}
-		if e.modified {
-			fh.SetMode(e.mode)
-		}
-		w, err := zw.CreateHeader(fh)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := w.Write(e.data); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := zw.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-type tarEntry struct {
-	name     string
-	data     []byte
-	mode     os.FileMode
-	dir      bool
-	typeflag byte
-	link     string
-}
-
-func buildTarGz(t testing.TB, path string, entries []tarEntry) {
-	t.Helper()
-	f, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	gw := gzip.NewWriter(f)
-	tw := tar.NewWriter(gw)
-	for _, e := range entries {
-		hdr := &tar.Header{Name: e.name, Mode: int64(e.mode)}
-		switch {
-		case e.typeflag != 0: // symlink/hardlink/fifo/device as requested
-			hdr.Typeflag = e.typeflag
-			hdr.Linkname = e.link
-			if err := tw.WriteHeader(hdr); err != nil {
-				t.Fatal(err)
-			}
-			continue
-		case e.dir:
-			hdr.Typeflag = tar.TypeDir
-			if err := tw.WriteHeader(hdr); err != nil {
-				t.Fatal(err)
-			}
-			continue
-		}
-		hdr.Typeflag = tar.TypeReg
-		hdr.Size = int64(len(e.data))
-		if err := tw.WriteHeader(hdr); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tw.Write(e.data); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := tw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := gw.Close(); err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -129,10 +40,10 @@ func TestExtractZipValid(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(dir, "tool.zip")
-	buildZip(t, archive, []zipEntry{
-		{name: "tool/", data: nil},
-		{name: "tool/readme.txt", data: []byte("hi")},
-		{name: "tool/" + fixtureBinName(), data: bin},
+	testfixture.BuildZip(t, archive, []testfixture.ZipEntry{
+		{Name: "tool/", Data: nil},
+		{Name: "tool/readme.txt", Data: []byte("hi")},
+		{Name: "tool/" + fixtureBinName(), Data: bin},
 	})
 	dest := filepath.Join(dir, "out")
 	if err := os.MkdirAll(dest, 0o755); err != nil {
@@ -164,10 +75,10 @@ func TestExtractTarGzValid(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(dir, "tool.tar.gz")
-	buildTarGz(t, archive, []tarEntry{
-		{name: "tool", mode: 0o755, dir: true},
-		{name: "tool/readme.txt", data: []byte("hi"), mode: 0o644},
-		{name: "tool/" + fixtureBinName(), data: bin, mode: 0o755},
+	testfixture.BuildTarGz(t, archive, []testfixture.TarEntry{
+		{Name: "tool", Mode: 0o755, Dir: true},
+		{Name: "tool/readme.txt", Data: []byte("hi"), Mode: 0o644},
+		{Name: "tool/" + fixtureBinName(), Data: bin, Mode: 0o755},
 	})
 	dest := filepath.Join(dir, "out")
 	if err := os.MkdirAll(dest, 0o755); err != nil {
@@ -196,7 +107,7 @@ func TestExtractZipTraversal(t *testing.T) {
 				t.Fatal(err)
 			}
 			archive := filepath.Join(dir, "evil.zip")
-			buildZip(t, archive, []zipEntry{{name: name, data: []byte("pwned")}})
+			testfixture.BuildZip(t, archive, []testfixture.ZipEntry{{Name: name, Data: []byte("pwned")}})
 			_, err := ExtractZip(archive, dest, defaultLimits())
 			if err == nil {
 				t.Fatal("extraction should have failed")
@@ -221,7 +132,7 @@ func TestExtractZipAbsoluteAndDriveAndReserved(t *testing.T) {
 		{"C:/evil.txt", "drive letter"},
 		{"CON", "Windows-reserved"},
 		{"sub/CON.txt", "Windows-reserved"},
-		{"a\\b.txt", "backslash"},
+		{"..\\evil.exe", "path traversal"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -231,12 +142,44 @@ func TestExtractZipAbsoluteAndDriveAndReserved(t *testing.T) {
 				t.Fatal(err)
 			}
 			archive := filepath.Join(dir, "evil.zip")
-			buildZip(t, archive, []zipEntry{{name: tc.name, data: []byte("x")}})
+			testfixture.BuildZip(t, archive, []testfixture.ZipEntry{{Name: tc.name, Data: []byte("x")}})
 			_, err := ExtractZip(archive, dest, defaultLimits())
 			if err == nil || !strings.Contains(err.Error(), tc.wantSub) {
 				t.Fatalf("error = %v, want substring %q", err, tc.wantSub)
 			}
 		})
+	}
+}
+
+func TestExtractZipBackslashSeparatorNormalized(t *testing.T) {
+	// PowerShell Compress-Archive writes entries with backslash separators
+	// ("dir\file.txt"), against the zip spec. Windows Explorer reads them
+	// as directories, so ShipSmoke normalizes and accepts them.
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "out")
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(dir, "bs.zip")
+	name := "a\\b.txt"
+	testfixture.BuildZip(t, archive, []testfixture.ZipEntry{{Name: name, Data: []byte("content")}})
+	_, err := ExtractZip(archive, dest, defaultLimits())
+	if err != nil {
+		t.Fatalf("backslash entry should extract as a/b.txt: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "a", "b.txt")); err != nil {
+		t.Errorf("expected a/b.txt after normalization: %v", err)
+	}
+	// Backslash traversal must still be rejected.
+	dest2 := filepath.Join(dir, "out2")
+	if err := os.MkdirAll(dest2, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	archive2 := filepath.Join(dir, "bs-evil.zip")
+	testfixture.BuildZip(t, archive2, []testfixture.ZipEntry{{Name: "..\\evil.txt", Data: []byte("x")}})
+	_, err = ExtractZip(archive2, dest2, defaultLimits())
+	if err == nil || !errors.Is(err, ErrUnsafeEntry) {
+		t.Fatalf("backslash traversal must be rejected, got %v", err)
 	}
 }
 
@@ -247,18 +190,18 @@ func TestExtractZipSymlinkRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(dir, "evil.zip")
-	buildZip(t, archive, []zipEntry{{
-		name:     "link",
-		data:     []byte("/etc/passwd"),
-		mode:     0o777 | os.ModeSymlink,
-		modified: true,
+	testfixture.BuildZip(t, archive, []testfixture.ZipEntry{{
+		Name:    "link",
+		Data:    []byte("/etc/passwd"),
+		Mode:    0o777 | os.ModeSymlink,
+		SetMode: true,
 	}})
 	_, err := ExtractZip(archive, dest, defaultLimits())
 	if err == nil || !errors.Is(err, ErrUnsafeEntry) {
 		t.Fatalf("want unsafe-entry error, got %v", err)
 	}
 	if !strings.Contains(err.Error(), "symbolic link") {
-		t.Fatalf("error should mention symlink: %v", err)
+		t.Fatalf("error should mention symLink: %v", err)
 	}
 }
 
@@ -269,7 +212,7 @@ func TestExtractZipBombRatio(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(dir, "bomb.zip")
-	buildZip(t, archive, []zipEntry{{name: "zeros.bin", data: make([]byte, 32<<20)}})
+	testfixture.BuildZip(t, archive, []testfixture.ZipEntry{{Name: "zeros.bin", Data: make([]byte, 32<<20)}})
 	_, err := ExtractZip(archive, dest, defaultLimits())
 	if err == nil || !errors.Is(err, ErrLimitHit) {
 		t.Fatalf("want limit error, got %v", err)
@@ -283,7 +226,7 @@ func TestExtractZipPerFileLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(dir, "big.zip")
-	buildZip(t, archive, []zipEntry{{name: "big.bin", data: make([]byte, 1<<20)}})
+	testfixture.BuildZip(t, archive, []testfixture.ZipEntry{{Name: "big.bin", Data: make([]byte, 1<<20)}})
 	limits := defaultLimits()
 	limits.MaxFileSize = 4096
 	_, err := ExtractZip(archive, dest, limits)
@@ -300,7 +243,7 @@ func TestExtractZipCorrupt(t *testing.T) {
 	}
 	archive := filepath.Join(dir, "bad.zip")
 	full := filepath.Join(dir, "full.zip")
-	buildZip(t, full, []zipEntry{{name: "a.txt", data: []byte("aaa")}})
+	testfixture.BuildZip(t, full, []testfixture.ZipEntry{{Name: "a.txt", Data: []byte("aaa")}})
 	data, _ := os.ReadFile(full)
 	if err := os.WriteFile(archive, data[:len(data)/2], 0o644); err != nil {
 		t.Fatal(err)
@@ -318,11 +261,11 @@ func TestExtractZipTooManyEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(dir, "many.zip")
-	var entries []zipEntry
+	var entries []testfixture.ZipEntry
 	for i := 0; i < 100; i++ {
-		entries = append(entries, zipEntry{name: fmt.Sprintf("f%03d.txt", i), data: []byte("x")})
+		entries = append(entries, testfixture.ZipEntry{Name: fmt.Sprintf("f%03d.txt", i), Data: []byte("x")})
 	}
-	buildZip(t, archive, entries)
+	testfixture.BuildZip(t, archive, entries)
 	limits := defaultLimits()
 	limits.MaxFiles = 50
 	_, err := ExtractZip(archive, dest, limits)
@@ -334,17 +277,17 @@ func TestExtractZipTooManyEntries(t *testing.T) {
 func TestExtractTarGzTraversalAndLinks(t *testing.T) {
 	cases := []struct {
 		name    string
-		entries []tarEntry
+		entries []testfixture.TarEntry
 		wantSub string
 	}{
-		{"parent traversal", []tarEntry{{name: "../evil.txt", data: []byte("x")}}, ".."},
-		{"nested traversal", []tarEntry{{name: "a/../../evil.txt", data: []byte("x")}}, ".."},
-		{"absolute", []tarEntry{{name: "/etc/evil", data: []byte("x")}}, "absolute"},
-		{"symlink", []tarEntry{{name: "link", typeflag: tar.TypeSymlink, link: "/etc/passwd"}}, "symbolic link"},
-		{"hardlink", []tarEntry{{name: "hlink", typeflag: tar.TypeLink, link: "target"}}, "hard link"},
-		{"fifo", []tarEntry{{name: "pipe", typeflag: tar.TypeFifo}}, "FIFO"},
-		{"chardev", []tarEntry{{name: "dev", typeflag: tar.TypeChar}}, "device node"},
-		{"backslash", []tarEntry{{name: "a\\b.txt", data: []byte("x")}}, "backslash"},
+		{"parent traversal", []testfixture.TarEntry{{Name: "../evil.txt", Data: []byte("x")}}, ".."},
+		{"nested traversal", []testfixture.TarEntry{{Name: "a/../../evil.txt", Data: []byte("x")}}, ".."},
+		{"absolute", []testfixture.TarEntry{{Name: "/etc/evil", Data: []byte("x")}}, "absolute"},
+		{"symlink", []testfixture.TarEntry{{Name: "link", Typeflag: tar.TypeSymlink, Link: "/etc/passwd"}}, "symbolic link"},
+		{"hardlink", []testfixture.TarEntry{{Name: "hlink", Typeflag: tar.TypeLink, Link: "target"}}, "hard link"},
+		{"fifo", []testfixture.TarEntry{{Name: "pipe", Typeflag: tar.TypeFifo}}, "FIFO"},
+		{"chardev", []testfixture.TarEntry{{Name: "dev", Typeflag: tar.TypeChar}}, "device node"},
+		{"backslash", []testfixture.TarEntry{{Name: "a\\b.txt", Data: []byte("x")}}, "backslash"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -354,7 +297,7 @@ func TestExtractTarGzTraversalAndLinks(t *testing.T) {
 				t.Fatal(err)
 			}
 			archive := filepath.Join(dir, "evil.tar.gz")
-			buildTarGz(t, archive, tc.entries)
+			testfixture.BuildTarGz(t, archive, tc.entries)
 			_, err := ExtractTarGz(archive, dest, defaultLimits())
 			if err == nil || !strings.Contains(err.Error(), tc.wantSub) {
 				t.Fatalf("error = %v, want substring %q", err, tc.wantSub)
@@ -375,9 +318,9 @@ func TestExtractTarGzTruncated(t *testing.T) {
 		t.Fatal(err)
 	}
 	full := filepath.Join(dir, "full.tar.gz")
-	buildTarGz(t, full, []tarEntry{
-		{name: "a.txt", data: []byte("hello world, this is a long enough payload")},
-		{name: "b.txt", data: []byte("second file content, also long enough for tar blocks")},
+	testfixture.BuildTarGz(t, full, []testfixture.TarEntry{
+		{Name: "a.txt", Data: []byte("hello world, this is a long enough payload")},
+		{Name: "b.txt", Data: []byte("second file content, also long enough for tar blocks")},
 	})
 	data, _ := os.ReadFile(full)
 	archive := filepath.Join(dir, "trunc.tar.gz")
@@ -400,7 +343,7 @@ func TestExtractTarGzBomb(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := filepath.Join(dir, "bomb.tar.gz")
-	buildTarGz(t, archive, []tarEntry{{name: "zeros.bin", data: make([]byte, 64<<20)}})
+	testfixture.BuildTarGz(t, archive, []testfixture.TarEntry{{Name: "zeros.bin", Data: make([]byte, 64<<20)}})
 	_, err := ExtractTarGz(archive, dest, defaultLimits())
 	if err == nil || !errors.Is(err, ErrLimitHit) {
 		t.Fatalf("want limit error, got %v", err)

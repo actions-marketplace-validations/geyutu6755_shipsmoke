@@ -85,7 +85,11 @@ func ExtractZip(archivePath, destDir string, limits Limits) (*Result, error) {
 	res := &Result{}
 	counted := int64(0)
 	for _, zf := range zr.File {
-		name := zf.Name
+		// Some Windows packers (notably PowerShell Compress-Archive) write
+		// entries with backslash separators, against the zip spec. Windows
+		// Explorer reads them as separators, so we normalize before
+		// validating — traversal like "..\evil" is still rejected below.
+		name := strings.ReplaceAll(zf.Name, "\\", "/")
 		if err := validateEntryName(name); err != nil {
 			return nil, err
 		}
@@ -330,8 +334,10 @@ func validateEntryName(name string) error {
 	if name == "" {
 		return unsafef("archive contains an entry with an empty name")
 	}
-	if strings.ContainsRune(name, 0) {
-		return unsafef("archive entry name contains a NUL byte: %q", name)
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f {
+			return unsafef("archive entry name %q contains a control character: refusing", name)
+		}
 	}
 	if strings.HasPrefix(name, "/") || strings.HasPrefix(name, "\\") {
 		return unsafef("archive entry %q has an absolute path: refusing", name)
