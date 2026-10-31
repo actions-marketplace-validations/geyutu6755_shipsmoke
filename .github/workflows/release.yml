@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and verify only, do not publish'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux/amd64, os: ubuntu-24.04, pkg: tar.gz }
+          - { target: linux/arm64, os: ubuntu-24.04, pkg: tar.gz }
+          - { target: darwin/amd64, os: macos-15, pkg: tar.gz }
+          - { target: darwin/arm64, os: macos-15, pkg: tar.gz }
+          - { target: windows/amd64, os: windows-2025, pkg: zip }
+          - { target: windows/arm64, os: windows-2025, pkg: zip }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Compute version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=v0.0.0-dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET="${{ matrix.target }}"
+          GOOS="${TARGET%%/*}"
+          GOARCH="${TARGET##*/}"
+          VERSION="${{ steps.ver.outputs.version }}"
+          EXE=""
+          [ "$GOOS" = "windows" ] && EXE=".exe"
+          export CGO_ENABLED=0
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=$VERSION -X main.commit=${GITHUB_SHA::7} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o "dist/shipsmoke_${GOOS}_${GOARCH}/shipsmoke${EXE}" ./cmd/shipsmoke
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET="${{ matrix.target }}"
+          GOOS="${TARGET%%/*}"
+          GOARCH="${TARGET##*/}"
+          cd "dist/shipsmoke_${GOOS}_${GOARCH}"
+          if [ "${{ matrix.pkg }}" = "zip" ]; then
+            powershell -Command "Compress-Archive -Path shipsmoke.exe -DestinationPath ../shipsmoke_${GOOS}_${GOARCH}.zip -Force"
+          else
+            tar -czf "../shipsmoke_${GOOS}_${GOARCH}.tar.gz" shipsmoke
+          fi
+          cd ..
+          # checksums
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "shipsmoke_${GOOS}_${GOARCH}.${{ matrix.pkg }}" > "shipsmoke_${GOOS}_${GOARCH}.${{ matrix.pkg }}.sha256"
+          else
+            powershell -Command "(Get-FileHash 'shipsmoke_${GOOS}_${GOARCH}.${{ matrix.pkg }}' -Algorithm SHA256).Hash.ToLower() + '  shipsmoke_${GOOS}_${GOARCH}.${{ matrix.pkg }}' | Out-File -Encoding ascii 'shipsmoke_${GOOS}_${GOARCH}.${{ matrix.pkg }}.sha256'"
+          fi
+
+      - name: Verify artifact on this real runner before publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET="${{ matrix.target }}"
+          GOOS="${TARGET%%/*}"
+          GOARCH="${TARGET##*/}"
+          HOST_OS="$(go env GOHOSTOS)"
+          HOST_ARCH="$(go env GOHOSTARCH)"
+          if [ "$GOOS" != "$HOST_OS" ] || [ "$GOARCH" != "$HOST_ARCH" ]; then
+            echo "cross-compiled target $TARGET differs from host $HOST_OS/$HOST_ARCH; skipping execution (cannot run foreign binaries on GitHub-hosted runners)"
+            exit 0
+          fi
+          # Build shipsmoke from source on the host and verify the packaged artifact.
+          go build -o verifier ./cmd/shipsmoke
+          ENTRY="shipsmoke"
+          [ "$GOOS" = "windows" ] && ENTRY="shipsmoke.exe"
+          EXT="tar.gz"
+          [ "${{ matrix.pkg }}" = "zip" ] && EXT="zip"
+          cat > .shipsmoke-release.yml <<EOF
+          version: 1
+          artifacts:
+            - name: shipsmoke-${GOOS}-${GOARCH}
+              path: dist/shipsmoke_${GOOS}_${GOARCH}.${EXT}
+              binary: ${ENTRY}
+              runs_on: [$GOOS/$GOARCH]
+              checks:
+                - args: ["version"]
+                  expect:
+                    exit_code: 0
+                    stdout_contains: ["${{ steps.ver.outputs.version }}"]
+          EOF
+          ./verifier check --config .shipsmoke-release.yml
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shipsmoke-${{ matrix.target }}
+          path: dist/shipsmoke_*
+          retention-days: 7
+
+  release:
+    needs: build
+    if: github.ref_type == 'tag' && (github.event_name != 'workflow_dispatch' || inputs.dry_run == 'false')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # required to create the GitHub Release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: shipsmoke-*
+          merge-multiple: true
+
+      - name: Collect release files and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          find artifacts -name 'shipsmoke_*' \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sha256' \) -exec cp {} release/ \;
+          cd release
+          # Combined checksums.txt from the per-file .sha256 files
+          cat *.sha256 | grep -v '^$' > checksums.txt
+          rm -f *.sha256
+          ls -la
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          body_path: .github/RELEASE_BODY.md
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: macos-15 # arm64 (Apple silicon)
+          - os: windows-2025
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Go version
+        run: go version
+
+      - name: gofmt check
+        if: runner.os == 'Linux'
+        run: |
+          test -z "$(gofmt -l . )" || { echo 'gofmt issues:'; gofmt -l .; exit 1; }
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Unit + integration tests
+        run: go test -v -count=1 ./...
+
+      - name: Fuzz extractors (short CI run)
+        if: runner.os == 'Linux'
+        run: |
+          go test -run '^$' -fuzz FuzzExtractZip -fuzztime 30s ./internal/artifact/
+          go test -run '^$' -fuzz FuzzExtractTarGz -fuzztime 30s ./internal/artifact/
+
+      - name: govulncheck
+        if: runner.os == 'Linux'
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
+      - name: CLI smoke (self-check)
+        shell: bash
+        run: |
+          go build -o shipsmoke-tmp ./cmd/shipsmoke
+          ./shipsmoke-tmp version
+          ./shipsmoke-tmp validate --config .shipsmoke.yml || true
+          rm -f shipsmoke-tmp shipsmoke-tmp.exe
+
+  self-verify:
+    # ShipSmoke verifies its own artifact on each platform (dogfooding).
+    name: Self-verify artifact (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux/amd64
+            pkg: tar.gz
+          - os: macos-15
+            target: darwin/arm64
+            pkg: tar.gz
+          - os: windows-2025
+            target: windows/amd64
+            pkg: zip
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build and package shipsmoke for this runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="v0.0.0-ci"
+          go build -trimpath -ldflags "-s -w -X main.version=$VERSION -X main.commit=${GITHUB_SHA::7}" -o shipsmoke ./cmd/shipsmoke
+          mkdir -p dist/pkg/shipsmoke
+          if [ "${{ matrix.pkg }}" = "zip" ]; then
+            cp shipsmoke.exe dist/pkg/shipsmoke/
+            powershell -Command "Compress-Archive -Path dist/pkg/shipsmoke -DestinationPath dist/shipsmoke_windows_amd64.zip -Force"
+          else
+            cp shipsmoke dist/pkg/shipsmoke/
+            tar -czf dist/shipsmoke_$(echo ${{ matrix.target }} | tr '/' '_').tar.gz -C dist/pkg shipsmoke
+          fi
+
+      - name: Verify the packaged artifact with shipsmoke itself
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="./shipsmoke"
+          [ -x "$BIN" ] || BIN="./shipsmoke.exe"
+          case "${{ matrix.os }}" in
+            ubuntu-*) cfg_target="linux/amd64"; name="linux-amd64";;
+            macos-*) cfg_target="darwin/arm64"; name="darwin-arm64";;
+            windows-*) cfg_target="windows/amd64"; name="windows-amd64";;
+          esac
+          if [ "${{ matrix.pkg }}" = "zip" ]; then
+            ART="dist/shipsmoke_windows_amd64.zip"
+            ENTRY="shipsmoke/shipsmoke.exe"
+          else
+            ART="dist/shipsmoke_${cfg_target//\//_}.tar.gz"
+            ENTRY="shipsmoke/shipsmoke"
+          fi
+          cat > .shipsmoke-self.yml <<EOF
+          version: 1
+          artifacts:
+            - name: shipsmoke-$name
+              path: $ART
+              binary: $ENTRY
+              runs_on: [$cfg_target]
+              checks:
+                - args: ["version"]
+                  expect:
+                    exit_code: 0
+                    stdout_contains: ["shipsmoke"]
+          EOF
+          "$BIN" check --config .shipsmoke-self.yml
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shipsmoke-${{ matrix.os }}
+          path: dist/shipsmoke_*
+          retention-days: 5

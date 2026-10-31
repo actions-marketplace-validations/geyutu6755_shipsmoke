@@ -1,0 +1,128 @@
+name: 'ShipSmoke'
+description: >
+  Verify that release artifacts (zip, tar.gz, standalone binaries) actually
+  extract and run on this runner's operating system, with PASS/FAIL reports
+  and a job summary. Fails the job when a check fails, so broken artifacts
+  cannot be published.
+author: 'geyutu6755'
+
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  config:
+    description: 'Path to .shipsmoke.yml'
+    required: false
+    default: '.shipsmoke.yml'
+  version:
+    description: >
+      shipsmoke release version to download (e.g. v1.0.0). Ignored when
+      `binary-path` is set. Defaults to the latest release.
+    required: false
+    default: 'latest'
+  binary-path:
+    description: >
+      Use a shipsmoke binary already present on the runner (e.g. built in an
+      earlier step) instead of downloading a release.
+    required: false
+    default: ''
+  report:
+    description: 'Where to write the JSON report (overrides the config file).'
+    required: false
+    default: 'shipsmoke-report.json'
+  artifact:
+    description: 'Verify only the artifact with this name (optional).'
+    required: false
+    default: ''
+  allow-empty:
+    description: 'Exit 0 even when no check was executed (default: exit 3).'
+    required: false
+    default: 'false'
+  upload-report:
+    description: 'Upload the JSON report as a workflow artifact.'
+    required: false
+    default: 'true'
+
+outputs:
+  report-path:
+    description: 'Path of the JSON report file.'
+    value: ${{ steps.run.outputs.report-path }}
+  exit-code:
+    description: 'shipsmoke exit code (0 pass, 1 fail, 2 usage, 3 nothing executed).'
+    value: ${{ steps.run.outputs.exit-code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Resolve shipsmoke binary'
+      id: 'bin'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${{ inputs.binary-path }}" ]; then
+          echo "path=${{ inputs.binary-path }}" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        VERSION="${{ inputs.version }}"
+        OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        ARCH="$(uname -m)"
+        case "$OS" in
+          linux*) os=linux ;;
+          darwin*) os=darwin ;;
+          mingw*|msys*|cygwin*) os=windows ;;
+          *) echo "unsupported OS: $OS" >&2; exit 2 ;;
+        esac
+        case "$ARCH" in
+          x86_64) arch=amd64 ;;
+          aarch64|arm64) arch=arm64 ;;
+          *) echo "unsupported arch: $ARCH" >&2; exit 2 ;;
+        esac
+        if [ "$VERSION" = "latest" ]; then
+          VERSION="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/geyutu6755/shipsmoke/releases/latest | sed 's#.*/tag/##')"
+        fi
+        BASE="https://github.com/geyutu6755/shipsmoke/releases/download/$VERSION"
+        if [ "$os" = "windows" ]; then
+          ASSET="shipsmoke_${os}_${arch}.zip"
+        else
+          ASSET="shipsmoke_${os}_${arch}.tar.gz"
+        fi
+        echo "downloading $ASSET"
+        curl -fsSL -o "shipsmoke-asset" "$BASE/$ASSET"
+        mkdir -p "${RUNNER_TEMP}/shipsmoke"
+        EXE=""
+        if [ "$os" = "windows" ]; then EXE=".exe"; unzip -o -q shipsmoke-asset -d "${RUNNER_TEMP}/shipsmoke"
+        else tar -xzf shipsmoke-asset -C "${RUNNER_TEMP}/shipsmoke"; fi
+        echo "path=${RUNNER_TEMP}/shipsmoke/shipsmoke${EXE}" >> "$GITHUB_OUTPUT"
+        rm -f shipsmoke-asset
+
+    - name: 'Run shipsmoke check'
+      id: 'run'
+      shell: bash
+      env:
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_ARTIFACT: ${{ inputs.artifact }}
+        INPUT_REPORT: ${{ inputs.report }}
+        INPUT_ALLOW_EMPTY: ${{ inputs.allow-empty }}
+      run: |
+        set -uo pipefail
+        BIN="${{ steps.bin.outputs.path }}"
+        ARGS=(check --config "$INPUT_CONFIG")
+        if [ -n "$INPUT_ARTIFACT" ]; then ARGS+=(--artifact "$INPUT_ARTIFACT"); fi
+        if [ -n "$INPUT_REPORT" ]; then ARGS+=(--report "$INPUT_REPORT"); fi
+        if [ "$INPUT_ALLOW_EMPTY" = "true" ]; then ARGS+=(--allow-empty); fi
+        set +e
+        "$BIN" "${ARGS[@]}"
+        CODE=$?
+        set -e
+        echo "exit-code=$CODE" >> "$GITHUB_OUTPUT"
+        echo "report-path=$INPUT_REPORT" >> "$GITHUB_OUTPUT"
+        exit $CODE
+
+    - name: 'Upload JSON report'
+      if: ${{ always() && inputs.upload-report == 'true' && inputs.report != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: 'shipsmoke-report-${{ runner.os }}'
+        path: ${{ inputs.report }}
+        if-no-files-found: ignore

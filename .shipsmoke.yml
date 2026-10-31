@@ -1,0 +1,36 @@
+version: 1
+
+# ShipSmoke verifying its own release artifacts (dogfooding).
+# This file doubles as a real-world configuration example.
+
+report:
+  json: dist/shipsmoke-report.json
+
+artifacts:
+  - name: shipsmoke-linux-amd64
+    path: dist/shipsmoke_linux_amd64.tar.gz
+    binary: shipsmoke
+    runs_on: [linux/amd64]
+    checks:
+      - args: ["version"]
+        expect:
+          exit_code: 0
+          stdout_contains: ["shipsmoke"]
+
+  - name: shipsmoke-darwin-arm64
+    path: dist/shipsmoke_darwin_arm64.tar.gz
+    binary: shipsmoke
+    runs_on: [darwin/arm64]
+    checks:
+      - args: ["version"]
+        expect:
+          exit_code: 0
+
+  - name: shipsmoke-windows-amd64
+    path: dist/shipsmoke_windows_amd64.zip
+    binary: shipsmoke.exe
+    runs_on: [windows/amd64]
+    checks:
+      - args: ["version"]
+        expect:
+          exit_code: 0
