@@ -135,11 +135,11 @@ func TestEvaluateMatchers(t *testing.T) {
 	}
 	// All pass: CRLF normalized, exit matches.
 	pass, reasons := Evaluate(out, config.Expect{
-		ExitCode:       3,
-		StdoutContains: []string{"tool version"},
+		ExitCode:          3,
+		StdoutContains:    []string{"tool version"},
 		StdoutNotContains: []string{"error"},
-		StderrContains: []string{"deprecated"},
-		StderrRegex:    "warning.*deprecated",
+		StderrContains:    []string{"deprecated"},
+		StderrRegex:       "warning.*deprecated",
 	})
 	if !pass {
 		t.Errorf("should pass, got %v", reasons)
