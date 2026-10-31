@@ -51,3 +51,10 @@ Living document. Updated at the end of every phase.
 ## Known open issues
 
 - None blocking release. See docs/LIMITATIONS.md for product-scope limitations.
+
+## Final state
+
+- Repository: https://github.com/geyutu6755/shipsmoke (public, MIT)
+- Release: https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.0
+- CI: all workflows green on real runners (see VALIDATION_REPORT.md §3–§5)
+- Release run: https://github.com/geyutu6755/shipsmoke/actions/runs/41226680894

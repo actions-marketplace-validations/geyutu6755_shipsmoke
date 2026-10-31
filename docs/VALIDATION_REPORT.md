@@ -87,12 +87,38 @@ ubuntu-24.04, macos-15 (arm64), and windows-2025:
 
 | Item | Evidence |
 |---|---|
-| v1.0.0 tag pushed | commit SHA recorded post-push |
+| v1.0.0 tag pushed | tag on commit 9cda5f2 |
+| Release workflow green (6 build jobs + publish) | https://github.com/geyutu6755/shipsmoke/actions/runs/41226680894 |
 | Release published | https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.0 |
-| 6 platform binaries + checksums.txt attached | release assets |
-| checksums.txt verified against binaries | sha256 -c output recorded post-release |
-| Release binary downloaded and run on matching OS | recorded post-release |
+| Assets (7) | checksums.txt + 6 platform archives: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64 (tar.gz), windows/amd64, windows/arm64 (zip) |
+| Pre-publish execution gate | Build jobs verified host-matching artifacts with shipsmoke before the release job ran (cross targets skipped with explicit log line) |
+| checksums.txt verified | downloaded locally; `sha256sum -c` → `shipsmoke_windows_amd64.zip: OK` |
+| Release binary downloaded and run | `shipsmoke version` → `shipsmoke v1.0.0 (windows/amd64)`, commit 9cda5f2, built 2026-10-31T17:53:43Z |
+| Released binary verifies its own released artifact | `shipsmoke check` on the downloaded zip → 2 passed → PASS, exit 0 |
 
 ## 7. Final acceptance conclusion
 
-(recorded at P9)
+**ACCEPTED — ShipSmoke v1.0.0 is released and verified.**
+
+Checked against the completion criteria:
+
+1. Core functionality implemented (check/validate/init/version, ZIP/tar.gz/standalone,
+   real execution, reporting, Actions integration) — yes.
+2. CLI usable via real installation (release download verified by SHA256 +
+   execution; `go install` path documented) — yes.
+3. Artifact detection and real execution verified — yes (CI + local e2e + release gate).
+4. All mandated failure tests pass (F-01…F-12 in the suite; cross-platform
+   failures exercised live during CI bring-up) — yes.
+5. Windows / Linux / macOS CI real and green — yes (runs 41225707854, 41226190065).
+6. Security review: govulncheck clean after fixing GO-2026-4869; threat model
+   documented; fuzz targets in place; no unresolved release-blocking issues — yes.
+7. Config and Actions examples reproducible — yes (examples green in CI;
+   README/action.yml recipes).
+8. Documentation and release assets complete — yes (README EN/中文, docs/,
+   CHANGELOG, SECURITY, CONTRIBUTING, CoC, LICENSE, 7 release assets).
+9. GitHub repository published — https://github.com/geyutu6755/shipsmoke (public,
+   topics set, CI badge).
+10. Final acceptance of real release artifacts recorded above — yes.
+
+Known limitations are documented in docs/LIMITATIONS.md (unsupported package
+formats, symlink rejection, no OS sandbox, output capture caps).
