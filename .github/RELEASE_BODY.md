@@ -1,4 +1,4 @@
-## ShipSmoke ${{ inputs.version || 'vX.Y.Z' }}
+## ShipSmoke v1.0.0
 
 **Test what users actually download.**
 
