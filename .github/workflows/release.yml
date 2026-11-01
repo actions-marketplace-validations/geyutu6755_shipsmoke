@@ -127,8 +127,15 @@ jobs:
               /mnt/$ENTRY version | grep -q "$VERSION" || { echo "arm64 container execution failed"; exit 1; }
           elif [ "$GOOS" = "darwin" ] && [ "$GOARCH" = "amd64" ] && [ "$HOST_OS" = "darwin" ]; then
             MODE="rosetta"
-            arch -x86_64 "verify-out/$ENTRY" version >/dev/null 2>&1 || \
-              softwareupdate --install-rosetta --agree-to-license >/dev/null
+            if ! arch -x86_64 "verify-out/$ENTRY" version >/dev/null 2>&1; then
+              softwareupdate --install-rosetta --agree-to-license
+              # oahd is the Rosetta translation daemon; it appears once the
+              # install actually registered.
+              for _ in 1 2 3 4 5 6 7 8 9 10; do
+                pgrep -x oahd >/dev/null 2>&1 && break
+                sleep 2
+              done
+            fi
             arch -x86_64 "verify-out/$ENTRY" version | grep -q "$VERSION" || { echo "Rosetta execution failed"; exit 1; }
           elif [ "$GOOS" = "windows" ] && [ "$GOARCH" = "arm64" ]; then
             MODE="build-only"
