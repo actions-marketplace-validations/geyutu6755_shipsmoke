@@ -139,11 +139,34 @@ New v1.0.2 evidence (all real CI):
 | `uses: geyutu6755/shipsmoke@v1` reference live (tag exists) | tag v1 → 1b75162 | yes |
 | Independent integration repo consuming `@v1` + `version: v1.0.2` on 3 OS (verify + refuse-tampered) | https://github.com/geyutu6755/shipsmoke-integration/actions/runs/41266540816 | PASS |
 
+## 6d. v1.0.3 release evidence (final)
+
+| Gate | Evidence | Result |
+|---|---|---|
+| tar.gz gzip CRC fix: 5 corruption fixtures (CRC field, truncated trailer, mid-stream deflate, trailing garbage accepted, non-critical content corruption) | `go test ./internal/artifact/ -run TestExtractTarGz` — all pass with the fix; pre-fix behavior covered by the assertions in corruption_test.go comments | PASS |
+| Three-layer verification model documented | docs/VERIFICATION_LAYERS.md | yes |
+| Strict version grammar (prerelease/leading-zero/moving refs rejected) | fetch-script suite, 28 cases green | PASS |
+| Release asset re-verification before publish | release.yml "Re-verify release assets against checksums.txt" step (ran in release 41271136122) | PASS |
+| Third-party Actions SHA-pinned; attestations generated | release job attest step; docs/SUPPLY_CHAIN.md | done |
+| Full CI (3 OS) on final commit 88cb63e | https://github.com/geyutu6755/shipsmoke/actions/runs/41270711764 | PASS |
+| action-test suite (28 fetch tests + e2e + injection) at 00b5b2b | https://github.com/geyutu6755/shipsmoke/actions/runs/41268289905 | PASS |
+| Examples (Go/Rust/C) on 88cb63e | runs 41270711764 batch | PASS |
+| **v1.0.3 release: 7/7 jobs green** | https://github.com/geyutu6755/shipsmoke/actions/runs/41271136122 | PASS |
+| `go install ...@v1.0.3` reports v1.0.3 | local verification | PASS |
+| Downloaded v1.0.3 windows/amd64 asset: SHA-256 match + binary runs (commit 88cb63e) | local verification | PASS |
+| Homebrew tap installs v1.0.3 on macOS; linux asset + checksum verified | https://github.com/geyutu6755/homebrew-tap/actions/runs/41271668595 | PASS |
+| Scoop bucket installs v1.0.3 on Windows | https://github.com/geyutu6755/scoop-bucket/actions/runs/41271672405 | PASS |
+| Independent integration repo: `@v1` + `version: v1.0.3`, verify + refuse-tampered, 3 OS | https://github.com/geyutu6755/shipsmoke-integration/actions/runs/41272145878 | PASS |
+| No fake-greens: heredocs remain banned (cigen tests assert), all generated configs cat'ed before use, needs-guard present | code review + CI | confirmed |
+
 ## 7. Final acceptance conclusion
 
-**ACCEPTED — ShipSmoke v1.0.1 (current release) is released and verified.**
-v1.0.0 shipped the complete feature set; v1.0.1 fixed version reporting
-under `go install` and was verified with the same gates.
+**ACCEPTED — ShipSmoke v1.0.3 (current release) is released and verified.**
+History: v1.0.0/v1.0.1 shipped wrong-arch artifacts for three of six
+archives (disclosed on their release pages, fixed in v1.0.2); v1.0.2
+hardened the action and its release gate; v1.0.3 verified gzip CRC fully,
+pinned the supply chain, and shipped the onboarding stack (init --ci,
+tutorials, brew/scoop).
 
 Checked against the completion criteria:
 
