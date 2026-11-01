@@ -123,6 +123,22 @@ New v1.0.2 evidence (all real CI):
 | Full CI after heredoc fix (printf configs) × 3 OS incl. self-verify actually running | https://github.com/geyutu6755/shipsmoke/actions/runs/41261797236 | PASS |
 | Independent integration repo (outside project consumes the action; verify + refuse-tampered jobs, 3 OS each) | https://github.com/geyutu6755/shipsmoke-integration/actions | see §5b |
 
+## 6c. v1.0.2 release evidence (final)
+
+| Gate | Evidence | Result |
+|---|---|---|
+| Release workflow green, all 6 builds verified | https://github.com/geyutu6755/shipsmoke/actions/runs/41265368122 | 7/7 jobs success |
+| linux/arm64: `detected: linux/arm64` + PASS inside QEMU arm64 container | job log, run 41265368122 | PASS (was detected: linux/amd64 FAIL before the export fix) |
+| darwin/amd64: `detected: darwin/amd64` + PASS under Rosetta | job log, run 41265368122 | PASS (was "Bad CPU type" with the wrong-arch binary) |
+| windows/arm64: "cannot be executed on an x64 GitHub-hosted runner (no emulation available); recording as build-only, NOT as executed" | job log, run 41265368122 | honestly recorded |
+| Premature publish retracted (needs-guard was overridden by explicit if) | v1.0.2 tag deleted, fixed, re-tagged at 1b75162 | gate integrity restored |
+| v1.0.0/v1.0.1 defect disclosed on their release pages | warning appended to both release notes | done |
+| Downloaded v1.0.2 linux/arm64 asset: SHA-256 OK + header `elf/arm64 (e_machine=183)` | local verification | PASS |
+| Downloaded v1.0.2 windows/amd64 asset: SHA-256 match + `shipsmoke v1.0.2 (windows/amd64)` runs | local verification | PASS |
+| `go install ...@v1.0.2` reports v1.0.2 | local verification | PASS |
+| `uses: geyutu6755/shipsmoke@v1` reference live (tag exists) | tag v1 → 1b75162 | yes |
+| Independent integration repo consuming `@v1` + `version: v1.0.2` on 3 OS (verify + refuse-tampered) | https://github.com/geyutu6755/shipsmoke-integration/actions/runs/41266540816 | PASS |
+
 ## 7. Final acceptance conclusion
 
 **ACCEPTED — ShipSmoke v1.0.1 (current release) is released and verified.**

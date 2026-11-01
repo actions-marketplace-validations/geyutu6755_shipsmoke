@@ -52,6 +52,18 @@ Living document. Updated at the end of every phase.
 
 - None blocking release. See docs/LIMITATIONS.md for product-scope limitations.
 
+## v1.0.2 maintenance round (2026-11-01)
+
+- Action hardening: env-var-only inputs, SHA-256-verified downloads, strict
+  version pinning; 23-case fetch-script suite + CI injection regression.
+- Critical finds fixed: v1.0.0/v1.0.1 wrong-arch artifacts (GOOS/GOARCH not
+  exported), heredoc fake-green in CI verify gates, release needs-guard
+  override; both premature/wrong publishes retracted and disclosed.
+- Coverage: linux/arm64 via QEMU container, darwin/amd64 via Rosetta,
+  windows/arm64 build-only (recorded).
+- Independent integration repo green on 3 OSes via `@v1` + `version: v1.0.2`.
+- Release: https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.2
+
 ## Final state
 
 - Repository: https://github.com/geyutu6755/shipsmoke (public, MIT)
