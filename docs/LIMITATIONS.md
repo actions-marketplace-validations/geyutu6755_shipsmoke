@@ -53,6 +53,14 @@ flag — these are scope decisions with reasons.
 - Devices and FIFOs are rejected.
 - Extraction limits are configurable but always on: entry count, per-file
   size, total size, compression ratio.
+- **Documented leniency (Go standard library behavior):** for a tar.gz whose
+  tar payload is structurally complete, corrupted bytes *inside file
+  contents* do not fail extraction — the tar reader stops at the zero end
+  blocks and the gzip member CRC is never reached. Truncated archives, broken
+  gzip headers and structurally broken tars ARE rejected. This is why the
+  checksum verification of a downloaded artifact (cosign/attestations or a
+  published checksums.txt) remains the tool for content integrity, and why
+  the shipsmoke action verifies SHA-256 before executing anything.
 
 ## Environment
 

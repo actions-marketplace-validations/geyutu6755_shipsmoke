@@ -98,6 +98,31 @@ ubuntu-24.04, macos-15 (arm64), and windows-2025:
 | Release binary downloaded and run | `shipsmoke version` → `shipsmoke v1.0.0 (windows/amd64)`, commit 9cda5f2, built 2026-10-31T17:53:43Z |
 | Released binary verifies its own released artifact | v1.0.0: 2 passed → PASS; v1.0.1: `sha256sum -c` OK, downloaded binary reports v1.0.1 and verifies its own zip → PASS, exit 0 |
 
+## 6b. v1.0.2 security revision — disclosures and new evidence
+
+**Disclosure (found while hardening v1.0.2):** v1.0.0/v1.0.1's CI
+self-verify and release-verify steps generated their shipsmoke config with a
+bash heredoc whose `EOF` terminator was indented inside the YAML block
+scalar. Bash never closed such a heredoc, so the follow-up
+`shipsmoke check` command was swallowed into the config file and **never
+executed** — those CI steps were green without running the gate. The
+artifacts themselves were verified manually at release time (see §6), but
+the CI gate claim for v1.0.0/v1.0.1 is hereby corrected: their self-verify
+and release-verify jobs did not run the check. v1.0.2 replaces all heredocs
+with `printf` + explicit `cat` of the generated config, so a swallowed
+command is visible and the check genuinely runs.
+
+New v1.0.2 evidence (all real CI):
+
+| Gate | Run | Result |
+|---|---|---|
+| Fetch-script security suite (injection/tamper/refusal, 23 cases) × 3 OS | https://github.com/geyutu6755/shipsmoke/actions/runs/41260802961 | PASS |
+| Composite action e2e via `uses: ./` + report assertions × 3 OS | https://github.com/geyutu6755/shipsmoke/actions/runs/41260802961 | PASS |
+| Injection regression through the real action entry × 3 OS | https://github.com/geyutu6755/shipsmoke/actions/runs/41260802961 | PASS (payload inert, step fails cleanly) |
+| Real-download check of v1.0.1 assets incl. SHA-256 × 3 OS | https://github.com/geyutu6755/shipsmoke/actions/runs/41260802961 | PASS |
+| Full CI after heredoc fix (printf configs) × 3 OS incl. self-verify actually running | https://github.com/geyutu6755/shipsmoke/actions/runs/41261797236 | PASS |
+| Independent integration repo (outside project consumes the action; verify + refuse-tampered jobs, 3 OS each) | https://github.com/geyutu6755/shipsmoke-integration/actions | see §5b |
+
 ## 7. Final acceptance conclusion
 
 **ACCEPTED — ShipSmoke v1.0.1 (current release) is released and verified.**
