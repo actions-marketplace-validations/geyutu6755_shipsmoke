@@ -17,14 +17,17 @@ inputs:
     default: '.shipsmoke.yml'
   version:
     description: >
-      shipsmoke release version to download (e.g. v1.0.0). Ignored when
-      `binary-path` is set. Defaults to the latest release.
+      shipsmoke release version to download and checksum-verify, e.g. v1.0.2
+      (a full release tag — moving refs like v1 are rejected here). Use
+      'latest' to resolve the newest release at run time. Ignored when
+      `binary-path` is set.
     required: false
     default: 'latest'
   binary-path:
     description: >
       Use a shipsmoke binary already present on the runner (e.g. built in an
-      earlier step) instead of downloading a release.
+      earlier step) instead of downloading a release. Its integrity is then
+      the caller's responsibility.
     required: false
     default: ''
   report:
@@ -51,73 +54,60 @@ outputs:
   exit-code:
     description: 'shipsmoke exit code (0 pass, 1 fail, 2 usage, 3 nothing executed).'
     value: ${{ steps.run.outputs.exit-code }}
+  verified:
+    description: 'How the executed binary was verified: "checksum" or "user-provided".'
+    value: ${{ steps.fetch.outputs.verified }}
+  resolved-version:
+    description: 'Release tag that was downloaded and verified, if any.'
+    value: ${{ steps.fetch.outputs.version }}
 
+# Security model of this composite action:
+#   * user inputs reach shell scripts ONLY through environment variables
+#     (GitHub expands `${{ }}` outside the shell; direct interpolation inside
+#     a run block is script injection) — there is deliberately not a single
+#     `${{ inputs.* }}` inside any run block below;
+#   * downloaded release assets are SHA-256 verified against the release's
+#     checksums.txt before extraction; any mismatch aborts the job before
+#     the binary is ever executed.
 runs:
   using: 'composite'
   steps:
-    - name: 'Resolve shipsmoke binary'
-      id: 'bin'
+    - name: 'Fetch and verify the shipsmoke binary'
+      id: 'fetch'
       shell: bash
-      run: |
-        set -euo pipefail
-        if [ -n "${{ inputs.binary-path }}" ]; then
-          echo "path=${{ inputs.binary-path }}" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-        VERSION="${{ inputs.version }}"
-        OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-        ARCH="$(uname -m)"
-        case "$OS" in
-          linux*) os=linux ;;
-          darwin*) os=darwin ;;
-          mingw*|msys*|cygwin*) os=windows ;;
-          *) echo "unsupported OS: $OS" >&2; exit 2 ;;
-        esac
-        case "$ARCH" in
-          x86_64) arch=amd64 ;;
-          aarch64|arm64) arch=arm64 ;;
-          *) echo "unsupported arch: $ARCH" >&2; exit 2 ;;
-        esac
-        if [ "$VERSION" = "latest" ]; then
-          VERSION="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/geyutu6755/shipsmoke/releases/latest | sed 's#.*/tag/##')"
-        fi
-        BASE="https://github.com/geyutu6755/shipsmoke/releases/download/$VERSION"
-        if [ "$os" = "windows" ]; then
-          ASSET="shipsmoke_${os}_${arch}.zip"
-        else
-          ASSET="shipsmoke_${os}_${arch}.tar.gz"
-        fi
-        echo "downloading $ASSET"
-        curl -fsSL -o "shipsmoke-asset" "$BASE/$ASSET"
-        mkdir -p "${RUNNER_TEMP}/shipsmoke"
-        EXE=""
-        if [ "$os" = "windows" ]; then EXE=".exe"; unzip -o -q shipsmoke-asset -d "${RUNNER_TEMP}/shipsmoke"
-        else tar -xzf shipsmoke-asset -C "${RUNNER_TEMP}/shipsmoke"; fi
-        echo "path=${RUNNER_TEMP}/shipsmoke/shipsmoke${EXE}" >> "$GITHUB_OUTPUT"
-        rm -f shipsmoke-asset
+      env:
+        SHIPS_VERSION: '${{ inputs.version }}'
+        SHIPS_BINARY_PATH: '${{ inputs.binary-path }}'
+      run: 'bash "$GITHUB_ACTION_PATH/scripts/fetch-shipsmoke.sh"'
 
     - name: 'Run shipsmoke check'
       id: 'run'
       shell: bash
       env:
-        INPUT_CONFIG: ${{ inputs.config }}
-        INPUT_ARTIFACT: ${{ inputs.artifact }}
-        INPUT_REPORT: ${{ inputs.report }}
-        INPUT_ALLOW_EMPTY: ${{ inputs.allow-empty }}
+        SHIPS_BIN: '${{ steps.fetch.outputs.path }}'
+        SHIPS_CONFIG: '${{ inputs.config }}'
+        SHIPS_ARTIFACT: '${{ inputs.artifact }}'
+        SHIPS_REPORT: '${{ inputs.report }}'
+        SHIPS_ALLOW_EMPTY: '${{ inputs.allow-empty }}'
       run: |
-        set -uo pipefail
-        BIN="${{ steps.bin.outputs.path }}"
-        ARGS=(check --config "$INPUT_CONFIG")
-        if [ -n "$INPUT_ARTIFACT" ]; then ARGS+=(--artifact "$INPUT_ARTIFACT"); fi
-        if [ -n "$INPUT_REPORT" ]; then ARGS+=(--report "$INPUT_REPORT"); fi
-        if [ "$INPUT_ALLOW_EMPTY" = "true" ]; then ARGS+=(--allow-empty); fi
+        set -euo pipefail
+        ARGS=(check --config "$SHIPS_CONFIG")
+        if [ -n "$SHIPS_ARTIFACT" ]; then
+          ARGS+=(--artifact "$SHIPS_ARTIFACT")
+        fi
+        if [ -n "$SHIPS_REPORT" ]; then
+          ARGS+=(--report "$SHIPS_REPORT")
+        fi
+        if [ "$SHIPS_ALLOW_EMPTY" = "true" ]; then
+          ARGS+=(--allow-empty)
+        fi
         set +e
-        "$BIN" "${ARGS[@]}"
+        "$SHIPS_BIN" "${ARGS[@]}"
         CODE=$?
         set -e
         echo "exit-code=$CODE" >> "$GITHUB_OUTPUT"
-        echo "report-path=$INPUT_REPORT" >> "$GITHUB_OUTPUT"
-        exit $CODE
+        echo "report-path=$SHIPS_REPORT" >> "$GITHUB_OUTPUT"
+        exit "$CODE"
 
     - name: 'Upload JSON report'
       if: ${{ always() && inputs.upload-report == 'true' && inputs.report != '' }}

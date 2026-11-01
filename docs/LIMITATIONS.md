@@ -39,9 +39,12 @@ flag — these are scope decisions with reasons.
 - On timeout the process tree is killed (process group on Unix, `taskkill /T`
   on Windows). Grandchildren that detach and re-parent may still survive on
   Windows; on Unix the process-group kill covers them.
-- Cross-compiled artifacts cannot be executed on a runner of a different
-  platform; ShipSmoke's own release workflow skips execution for those and
-  says so in the log.
+- Execution coverage of the six release artifacts (v1.0.2 release pipeline):
+  linux/amd64, darwin/arm64, windows/amd64 run **natively** on their matching
+  runners; linux/arm64 runs **in a QEMU arm64 container** (ubuntu:24.04);
+  darwin/amd64 runs **under Rosetta 2**; windows/arm64 is **build-only** —
+  no execution path exists on an x64 GitHub-hosted runner, and the release
+  job summary records it as such rather than claiming a run.
 
 ## Archives
 

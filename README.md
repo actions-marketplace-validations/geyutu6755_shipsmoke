@@ -153,6 +153,23 @@ jobs:
 A failing check fails the step (exit code 1), which blocks the publish step.
 The action also writes a job summary table and uploads the JSON report.
 
+**Action security model (v1.0.2+):**
+
+- User inputs reach shell code only through environment variables — no
+  `${{ inputs.* }}` is interpolated inside any `run:` block, so hostile
+  input values cannot execute as script injection (covered by an automated
+  injection-regression test on all three platforms).
+- When the action downloads a release, the asset is **SHA-256 verified
+  against the release's `checksums.txt` before extraction**; a failed
+  download, a missing checksum entry, or a hash mismatch aborts the job
+  before the binary is ever executed. `verified: checksum` / `verified:
+  user-provided` is exposed as a step output.
+- `version:` accepts `latest` or a full tag `vX.Y.Z`; moving refs like `v1`
+  are rejected in the action (use them in `uses:` to select the action
+  itself, and pin the tool release separately). Pinning both — e.g.
+  `uses: geyutu6755/shipsmoke@v1.0.2` with `version: v1.0.2` — gives a fully
+  reproducible gate.
+
 Two integration patterns:
 
 1. **Verify after build, before publish** (fully supported) — build in the
@@ -160,6 +177,11 @@ Two integration patterns:
 2. **Post-release re-download verification** (documented recipe) — after the
    release is out, download the published asset and run ShipSmoke on it. See
    [docs/CONFIGURATION.md](docs/CONFIGURATION.md#post-release-verification).
+
+The action itself is exercised from an independent repository on all three
+operating systems (see
+[shipsmoke-integration](https://github.com/geyutu6755/shipsmoke-integration)),
+not only by this repo's self-checks.
 
 See [examples/](examples/) for complete, CI-verified Go, Rust, and C projects
 using exactly this pattern.

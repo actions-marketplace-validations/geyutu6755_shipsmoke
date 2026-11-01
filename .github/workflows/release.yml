@@ -82,7 +82,11 @@ jobs:
             powershell -Command "(Get-FileHash 'shipsmoke_${GOOS}_${GOARCH}.${{ matrix.pkg }}' -Algorithm SHA256).Hash.ToLower() + '  shipsmoke_${GOOS}_${GOARCH}.${{ matrix.pkg }}' | Out-File -Encoding ascii 'shipsmoke_${GOOS}_${GOARCH}.${{ matrix.pkg }}.sha256'"
           fi
 
-      - name: Verify artifact on this real runner before publishing
+      - name: Set up QEMU (executes the linux/arm64 artifact in a container)
+        if: matrix.target == 'linux/arm64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Verify artifact runs before publishing
         shell: bash
         run: |
           set -euo pipefail
@@ -91,18 +95,62 @@ jobs:
           GOARCH="${TARGET##*/}"
           HOST_OS="$(go env GOHOSTOS)"
           HOST_ARCH="$(go env GOHOSTARCH)"
-          if [ "$GOOS" != "$HOST_OS" ] || [ "$GOARCH" != "$HOST_ARCH" ]; then
-            echo "cross-compiled target $TARGET differs from host $HOST_OS/$HOST_ARCH; skipping execution (cannot run foreign binaries on GitHub-hosted runners)"
-            exit 0
-          fi
-          # Build shipsmoke from source on the host and verify the packaged artifact.
-          HEXE=""
-          [ "$GOOS" = "windows" ] && HEXE=".exe"
-          go build -o "verifier$HEXE" ./cmd/shipsmoke
-          ENTRY="shipsmoke"
-          [ "$GOOS" = "windows" ] && ENTRY="shipsmoke.exe"
           EXT="tar.gz"
           [ "${{ matrix.pkg }}" = "zip" ] && EXT="zip"
+          ENTRY="shipsmoke"
+          [ "$GOOS" = "windows" ] && ENTRY="shipsmoke.exe"
+          VERSION="${{ steps.ver.outputs.version }}"
+
+          # Extract the packaged artifact once; every mode below runs the
+          # extracted entry binary.
+          rm -rf verify-out && mkdir -p verify-out
+          if [ "$EXT" = "zip" ]; then
+            if command -v unzip >/dev/null 2>&1; then
+              unzip -q "dist/shipsmoke_${GOOS}_${GOARCH}.zip" -d verify-out
+            else
+              WZIP="$(cygpath -w "$PWD/dist/shipsmoke_${GOOS}_${GOARCH}.zip")"
+              WOUT="$(cygpath -w "$PWD/verify-out")"
+              powershell -NoProfile -Command "Expand-Archive -Path '$WZIP' -DestinationPath '$WOUT' -Force"
+            fi
+          else
+            tar -xzf "dist/shipsmoke_${GOOS}_${GOARCH}.tar.gz" -C verify-out
+          fi
+
+          MODE="none"
+          if [ "$GOOS" = "$HOST_OS" ] && [ "$GOARCH" = "$HOST_ARCH" ]; then
+            MODE="native"
+            "verify-out/$ENTRY" version | grep -q "$VERSION" || { echo "version output mismatch"; exit 1; }
+          elif [ "$GOOS" = "linux" ] && [ "$GOARCH" = "arm64" ] && [ "$HOST_OS" = "linux" ]; then
+            MODE="qemu-container"
+            docker run --rm --platform linux/arm64 \
+              -v "$PWD/verify-out:/mnt:ro" ubuntu:24.04 \
+              /mnt/$ENTRY version | grep -q "$VERSION" || { echo "arm64 container execution failed"; exit 1; }
+          elif [ "$GOOS" = "darwin" ] && [ "$GOARCH" = "amd64" ] && [ "$HOST_OS" = "darwin" ]; then
+            MODE="rosetta"
+            arch -x86_64 "verify-out/$ENTRY" version >/dev/null 2>&1 || \
+              softwareupdate --install-rosetta --agree-to-license >/dev/null
+            arch -x86_64 "verify-out/$ENTRY" version | grep -q "$VERSION" || { echo "Rosetta execution failed"; exit 1; }
+          elif [ "$GOOS" = "windows" ] && [ "$GOARCH" = "arm64" ]; then
+            MODE="build-only"
+            echo "windows/arm64 cannot be executed on an x64 GitHub-hosted runner (no emulation available); recording as build-only, NOT as executed"
+          fi
+
+          if [ "$MODE" = "none" ]; then
+            echo "no execution strategy for $TARGET on this runner"; exit 1
+          fi
+          echo "coverage: $TARGET → $MODE" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$MODE" = "build-only" ]; then
+            exit 0
+          fi
+
+          # Full shipsmoke self-verification wherever the binary can run:
+          # a shipsmoke verifier of the TARGET architecture checks the
+          # packaged artifact (native, in an arm64 container, or via Rosetta).
+          case "$MODE" in
+            native)         go build -o verifier ./cmd/shipsmoke; VERIFIER_CMD="./verifier" ;;
+            qemu-container) CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o verifier-arm64 ./cmd/shipsmoke; VERIFIER_CMD="/work/verifier-arm64" ;;
+            rosetta)        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o verifier-amd64 ./cmd/shipsmoke; VERIFIER_CMD="arch -x86_64 ./verifier-amd64" ;;
+          esac
           cat > .shipsmoke-release.yml <<EOF
           version: 1
           artifacts:
@@ -114,9 +162,17 @@ jobs:
                 - args: ["version"]
                   expect:
                     exit_code: 0
-                    stdout_contains: ["${{ steps.ver.outputs.version }}"]
+                    stdout_contains: ["${VERSION}"]
           EOF
-          ./verifier$HEXE check --config .shipsmoke-release.yml
+          if [ "$MODE" = "native" ]; then
+            $VERIFIER_CMD check --config .shipsmoke-release.yml
+          elif [ "$MODE" = "qemu-container" ]; then
+            docker run --rm --platform linux/arm64 \
+              -v "$PWD:/work" -w /work ubuntu:24.04 \
+              $VERIFIER_CMD check --config .shipsmoke-release.yml
+          else
+            $VERIFIER_CMD check --config .shipsmoke-release.yml
+          fi
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

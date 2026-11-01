@@ -149,6 +149,19 @@ jobs:
 任何检查失败都会使该步骤失败（退出码 1），从而阻断发布步骤。Action 还会
 写入 Job Summary 表格并上传 JSON 报告。
 
+**Action 安全模型（v1.0.2 起）：**
+
+- 用户输入仅通过环境变量进入 Shell 代码 —— 所有 `run:` 块内不存在任何
+  `${{ inputs.* }}` 插值，恶意输入值无法以脚本注入方式执行（三平台均有
+  自动化注入回归测试覆盖）。
+- Action 下载发行包时会**先对照该版本的 `checksums.txt` 校验 SHA-256，再
+  解压**；下载失败、清单缺失条目或哈希不匹配都会在二进制被执行之前终止
+  任务。`verified: checksum` / `verified: user-provided` 作为 step 输出暴露。
+- `version:` 接受 `latest` 或完整标签 `vX.Y.Z`；`v1` 这类可移动引用在
+  Action 内会被拒绝（`uses:` 中可用其选择 Action 本身，工具版本另行固定）。
+  两者都固定 —— 例如 `uses: geyutu6755/shipsmoke@v1.0.2` 加
+  `version: v1.0.2` —— 可获得完全可复现的门禁。
+
 两种接入模式：
 
 1. **构建后、公开发布前验证**（V1.0 完整支持）—— 构建打包后运行
@@ -158,6 +171,9 @@ jobs:
    [docs/CONFIGURATION.md](docs/CONFIGURATION.md#post-release-verification)。
 
 [examples/](examples/) 里有完整且经过 CI 验证的 Go、Rust、C 三个示例项目。
+Action 本身还在独立仓库
+[shipsmoke-integration](https://github.com/geyutu6755/shipsmoke-integration)
+中于三个操作系统上完成端到端验证，而非仅依赖本项目自检。
 
 ## 退出码
 

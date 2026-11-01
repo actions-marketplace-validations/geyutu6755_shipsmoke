@@ -4,6 +4,48 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-11-01
+
+### Security
+
+- **Composite action: eliminated script-injection vectors.** All user inputs
+  (`version`, `binary-path`, `config`, `artifact`, `report`,
+  `allow-empty`) now reach shell code only through environment variables;
+  no `${{ inputs.* }}` interpolation remains inside any `run:` block.
+  Automated injection-regression tests on all three operating systems
+  verify hostile payloads fail inertly.
+- **Composite action: release downloads are now integrity-checked.** The
+  fetched asset is SHA-256 verified against the release's `checksums.txt`
+  before extraction; failed downloads, missing manifest entries, and hash
+  mismatches abort before the binary is executed. A step output
+  (`verified`) exposes how the executed binary was obtained.
+- **Version pinning hardened:** the action's `version` input accepts only
+  `latest` or a full `vX.Y.Z` tag; moving refs (`v1`, `v1.0`) and non-tag
+  values are rejected with an explanatory error.
+
+### Added
+
+- `scripts/fetch-shipsmoke.sh` + `scripts/fetch-shipsmoke_test.bash`: the
+  action's fetch logic is a standalone, environment-parameterized script
+  with a 23-case test suite (injection, malformed versions, tampered
+  checksums, refusal paths, success path) running in CI on all three OSes.
+- `action-test` workflow: fetch-script suite, end-to-end composite-action
+  run via `uses: ./` with report assertions, real-download check against a
+  published release, and the injection regression.
+- Independent integration repository
+  ([shipsmoke-integration](https://github.com/geyutu6755/shipsmoke-integration))
+  consuming `geyutu6755/shipsmoke@v1` from an outside project on all three
+  operating systems.
+- Release pipeline execution coverage: linux/arm64 verified in a QEMU
+  arm64 container, darwin/amd64 verified under Rosetta 2; windows/arm64 is
+  recorded honestly as build-only in the release job summary.
+
+### Fixed
+
+- README/中文文档 referenced `uses: geyutu6755/shipsmoke@v1` before any `v1`
+  tag existed; the `v1` tag now tracks the v1.0.2 release.
+- Documentation/Release-notes version inconsistencies cleaned up.
+
 ## [1.0.1] - 2026-11-01
 
 ### Fixed

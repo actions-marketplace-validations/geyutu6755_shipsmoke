@@ -1,0 +1,132 @@
+name: action-test
+
+# Security and behavior tests for the composite action: the fetch script's
+# injection/verification suite, the action used end-to-end from this repo,
+# and the real download path against the production release.
+
+on:
+  push:
+    branches: [main]
+    paths: ["action.yml", "scripts/**", ".github/workflows/action-test.yml"]
+  pull_request:
+    paths: ["action.yml", "scripts/**", ".github/workflows/action-test.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-script-tests:
+    name: Fetch script security tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the fetch-script test suite (injection, tamper, refusal)
+        shell: bash
+        run: bash scripts/fetch-shipsmoke_test.bash
+
+      # Real download path against the production release: the exact code the
+      # action users get, pinned to a published tag, checksum-verified.
+      - name: Fetch a real published release through the script
+        shell: bash
+        env:
+          SHIPS_VERSION: 'v1.0.1'
+          GITHUB_OUTPUT: '${{ runner.temp }}/fetch-outputs.txt'
+        run: |
+          set -euo pipefail
+          bash scripts/fetch-shipsmoke.sh
+          cat "$GITHUB_OUTPUT"
+          BIN="$(grep '^path=' "$GITHUB_OUTPUT" | cut -d= -f2-)"
+          VER="$(grep '^version=' "$GITHUB_OUTPUT" | cut -d= -f2-)"
+          [ "$VER" = "v1.0.1" ] || { echo "unexpected resolved version: $VER"; exit 1; }
+          "$BIN" version
+
+  action-end-to-end:
+    name: "Composite action e2e via uses: ./ (${{ matrix.os }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build shipsmoke and a demo artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          go build -o "demo-shipsmoke$EXE" ./cmd/shipsmoke
+          mkdir -p demo-dist
+          go build -o "demo-dist/gokit$EXE" ./examples/go-cli
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            powershell -NoProfile -Command "Compress-Archive -Path demo-dist/gokit.exe -DestinationPath demo-dist/gokit.zip -Force"
+          else
+            tar -czf demo-dist/gokit.tar.gz -C demo-dist gokit
+          fi
+
+      - name: Write the verification config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            printf 'version: 1\nartifacts:\n  - name: gokit\n    path: demo-dist/gokit.zip\n    binary: gokit.exe\n    runs_on: [windows/amd64, windows/arm64]\n    checks:\n      - args: ["--version"]\n        expect: {exit_code: 0, stdout_contains: ["gokit version 1.0.0"]}\n' > action-e2e.yml
+          else
+            printf 'version: 1\nartifacts:\n  - name: gokit\n    path: demo-dist/gokit.tar.gz\n    binary: gokit\n    runs_on: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64]\n    checks:\n      - args: ["--version"]\n        expect: {exit_code: 0, stdout_contains: ["gokit version 1.0.0"]}\n' > action-e2e.yml
+          fi
+
+      # The action, consumed exactly as a user would from this repo:
+      # `uses: ./` exercises the real composite entry (fetch → run → outputs).
+      - name: 'Run shipsmoke action (uses: ./)'
+        id: verify
+        uses: ./
+        with:
+          config: action-e2e.yml
+          report: action-e2e-report.json
+          binary-path: ${{ github.workspace }}/demo-shipsmoke${{ runner.os == 'Windows' && '.exe' || '' }}
+          version: unused-when-binary-path-set
+
+      - name: Assert outputs and report
+        shell: bash
+        env:
+          EXPECTED_EXIT: '0'
+          REPORT: action-e2e-report.json
+        run: |
+          set -euo pipefail
+          [ "${{ steps.verify.outputs.exit-code }}" = "0" ] || { echo "exit-code output wrong: ${{ steps.verify.outputs.exit-code }}"; exit 1; }
+          [ -f "$REPORT" ] || { echo "report missing"; exit 1; }
+          python -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['summary']['overall']=='PASS', d['summary']; print('report OK:', d['summary']['overall'])" "$REPORT"
+
+      # Injection regression through the real action entry: a hostile `version`
+      # must fail the step cleanly and must NOT execute its payload.
+      - name: 'Injection regression: hostile version input must not execute'
+        id: hostile
+        continue-on-error: true
+        uses: ./
+        with:
+          config: action-e2e.yml
+          report: ''
+          binary-path: ''
+          version: 'v1.0.0"; touch pwned-marker; #'
+
+      - name: Assert the injection was inert
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f pwned-marker ]; then
+            echo "::error::injection payload EXECUTED — action is vulnerable"
+            exit 1
+          fi
+          outcome="${{ steps.hostile.outcome }}"
+          [ "$outcome" = "failure" ] || { echo "hostile input did not fail the step (outcome=$outcome)"; exit 1; }
+          echo "injection attempt failed cleanly and executed nothing — OK"

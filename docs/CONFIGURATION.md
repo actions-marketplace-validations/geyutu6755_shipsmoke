@@ -115,11 +115,22 @@ steps:
     if: success()
 ```
 
-Inputs: `config`, `version` (release of shipsmoke to fetch; `latest` by
-default), `binary-path` (use an already-built shipsmoke), `report`,
-`artifact`, `allow-empty`, `upload-report`. Outputs: `report-path`,
-`exit-code`. The action never passes `GITHUB_TOKEN` (or any secret) to the
-verified binary — the default minimal environment excludes it.
+Inputs: `config`, `version` (release of shipsmoke to fetch: `latest` or a
+full tag `vX.Y.Z` — moving refs like `v1` are rejected here), `binary-path`
+(use an already-built shipsmoke; its integrity is then the caller's
+responsibility), `report`, `artifact`, `allow-empty`, `upload-report`.
+Outputs: `report-path`, `exit-code`, `verified` (`checksum` or
+`user-provided`), `resolved-version`.
+
+Security model: inputs reach the shell only via environment variables (no
+`${{ inputs.* }}` interpolation inside `run:` blocks, so input values cannot
+execute as script injection). Downloaded assets are SHA-256 verified against
+the release's `checksums.txt` before extraction; download failure, a missing
+manifest entry, or a hash mismatch aborts before the binary runs. The action
+never passes `GITHUB_TOKEN` (or any secret) to the verified binary — the
+default minimal environment excludes it. These behaviors are covered by the
+`action-test` workflow (injection payloads must fail inertly; tampered
+downloads must be refused), which runs on all three operating systems.
 
 Run the matrix so each artifact is verified on a runner that really matches
 its target platform — see the README recipe.
