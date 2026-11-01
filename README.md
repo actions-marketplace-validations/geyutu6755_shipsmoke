@@ -123,35 +123,74 @@ Full schema and all matchers (`stdout_contains`, `stdout_not_contains`,
 
 ## Use in GitHub Actions
 
-Minimal recipe — verify each artifact on the runner that matches it:
+Generate a complete, pre-verified setup for your project:
 
-```yaml
-jobs:
-  verify:
-    strategy:
-      matrix:
-        include:
-          - { os: ubuntu-24.04, target: linux/amd64 }
-          - { os: macos-15,     target: darwin/arm64 }
-          - { os: windows-2025, target: windows/amd64 }
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build your artifacts here (or download them)
-        run: ./build.sh
-      - uses: geyutu6755/shipsmoke@v1
-        with:
-          config: .shipsmoke.yml
-          report: shipsmoke-report.json
-      - name: Publish only if verification passed
-        if: success()
-        run: ./publish.sh
+```console
+$ shipsmoke init --ci --stack go --name mytool
+generated files for the go stack (tool "mytool"):
+  .shipsmoke.yml          — verification config
+  .github/workflows/shipsmoke.yml — three-platform CI: build, package, shipsmoke gate
 ```
 
-A failing check fails the step (exit code 1), which blocks the publish step.
-The action also writes a job summary table and uploads the JSON report.
+Supported stacks are exactly `go`, `rust`, `c` (ShipSmoke does not infer
+build systems). The generated workflow is the same shape proven in
+[shipsmoke-integration](https://github.com/geyutu6755/shipsmoke-integration):
+build → package (`tar.gz` on Linux/macOS, `zip` on Windows) → `shipsmoke`
+verify on ubuntu-24.04, macos-15 and windows-2025.
+
+The hand-written equivalent for a Go CLI — copy-paste ready, with the build
+and verify steps inline (no helper scripts):
+
+```yaml
+name: shipsmoke
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Verify release artifact (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - name: Build and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          mkdir -p dist
+          go build -o "dist/mytool$EXE" .
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            powershell -NoProfile -Command "Compress-Archive -Path dist/mytool.exe -DestinationPath dist/mytool.zip -Force"
+          else
+            tar -czf dist/mytool.tar.gz -C dist mytool
+          fi
+      - name: Verify artifact with shipsmoke
+        uses: geyutu6755/shipsmoke@v1
+        with:
+          config: .shipsmoke.yml
+          report: dist/shipsmoke-report.json
+          version: v1.0.3
+      - name: Publish only if verification passed
+        if: success()
+        run: echo "all artifacts verified — attach dist/ to your release here"
+```
+
+A failing check fails the verify step (exit code 1), which blocks anything
+that depends on it. The action writes a job summary table and uploads the
+JSON report. Full tutorials: [docs/TUTORIAL_GO.md](docs/TUTORIAL_GO.md),
+[docs/TUTORIAL_RUST.md](docs/TUTORIAL_RUST.md),
+[docs/TUTORIAL_C.md](docs/TUTORIAL_C.md).
 
 **Action security model (v1.0.2+):**
 

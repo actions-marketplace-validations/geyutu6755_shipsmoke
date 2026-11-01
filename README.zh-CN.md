@@ -119,35 +119,72 @@ artifacts:
 
 ## 在 GitHub Actions 中使用
 
-最小配方 —— 在与发行包匹配的 runner 上验证：
+为你的项目生成一份完整、经过预验证的配置：
 
-```yaml
-jobs:
-  verify:
-    strategy:
-      matrix:
-        include:
-          - { os: ubuntu-24.04, target: linux/amd64 }
-          - { os: macos-15,     target: darwin/arm64 }
-          - { os: windows-2025, target: windows/amd64 }
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: 在此构建（或下载）你的发行包
-        run: ./build.sh
-      - uses: geyutu6755/shipsmoke@v1
-        with:
-          config: .shipsmoke.yml
-          report: shipsmoke-report.json
-      - name: 仅在验证通过后发布
-        if: success()
-        run: ./publish.sh
+```console
+$ shipsmoke init --ci --stack go --name mytool
+generated files for the go stack (tool "mytool"):
+  .shipsmoke.yml          — 验证配置
+  .github/workflows/shipsmoke.yml — 三平台 CI：构建、打包、shipsmoke 门禁
 ```
 
-任何检查失败都会使该步骤失败（退出码 1），从而阻断发布步骤。Action 还会
-写入 Job Summary 表格并上传 JSON 报告。
+支持的栈明确为 `go`、`rust`、`c` 三种（ShipSmoke 不推断构建系统）。生成的
+workflow 与 [shipsmoke-integration](https://github.com/geyutu6755/shipsmoke-integration)
+中验证过的形状一致：构建 → 打包（Linux/macOS 用 `tar.gz`，Windows 用
+`zip`）→ 在 ubuntu-24.04、macos-15、windows-2025 上 `shipsmoke` 验证。
+
+Go CLI 的手写等价版本——可直接复制，构建与验证步骤内联（无辅助脚本）：
+
+```yaml
+name: shipsmoke
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Verify release artifact (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - name: Build and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          mkdir -p dist
+          go build -o "dist/mytool$EXE" .
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            powershell -NoProfile -Command "Compress-Archive -Path dist/mytool.exe -DestinationPath dist/mytool.zip -Force"
+          else
+            tar -czf dist/mytool.tar.gz -C dist mytool
+          fi
+      - name: Verify artifact with shipsmoke
+        uses: geyutu6755/shipsmoke@v1
+        with:
+          config: .shipsmoke.yml
+          report: dist/shipsmoke-report.json
+          version: v1.0.3
+      - name: 仅在验证通过后发布
+        if: success()
+        run: echo "全部产物验证通过 —— 在此把 dist/ 附加到你的 release"
+```
+
+任何检查失败都会使 verify 步骤失败（退出码 1），从而阻断依赖它的步骤。
+Action 会写入 Job Summary 表格并上传 JSON 报告。完整教程：
+[docs/TUTORIAL_GO.md](docs/TUTORIAL_GO.md)、
+[docs/TUTORIAL_RUST.md](docs/TUTORIAL_RUST.md)、
+[docs/TUTORIAL_C.md](docs/TUTORIAL_C.md)。
 
 **Action 安全模型（v1.0.2 起）：**
 

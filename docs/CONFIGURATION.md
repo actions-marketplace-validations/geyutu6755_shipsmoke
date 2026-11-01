@@ -106,13 +106,17 @@ permissions:
   contents: read
 steps:
   - uses: actions/checkout@v4
-  - run: ./build-all.sh        # produce dist/
+  - name: Build and package your artifacts
+    run: |
+      go build -o dist/mytool .
+      tar -czf dist/mytool.tar.gz -C dist mytool
   - uses: geyutu6755/shipsmoke@v1
     with:
       config: .shipsmoke.yml
       report: shipsmoke-report.json
-  - run: ./publish.sh
+  - name: Publish only if verification passed
     if: success()
+    run: echo "all artifacts verified — attach dist/ to your release here"
 ```
 
 Inputs: `config`, `version` (release of shipsmoke to fetch: `latest` or a
