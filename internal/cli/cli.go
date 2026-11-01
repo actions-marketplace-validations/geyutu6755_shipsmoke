@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/geyutu6755/shipsmoke/internal/cigen"
 	"github.com/geyutu6755/shipsmoke/internal/config"
 	"github.com/geyutu6755/shipsmoke/internal/engine"
 	"github.com/geyutu6755/shipsmoke/internal/report"
@@ -228,24 +229,91 @@ func runValidate(args []string, stdout, stderr io.Writer) int {
 func runInit(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	force := fs.Bool("force", false, "overwrite an existing .shipsmoke.yml")
+	force := fs.Bool("force", false, "overwrite existing generated files")
+	ci := fs.Bool("ci", false, "generate a GitHub Actions workflow (.github/workflows/shipsmoke.yml) plus .shipsmoke.yml")
+	stackFlag := fs.String("stack", "", "with --ci: which build stack to generate (go | rust | c) — shipsmoke does not infer build systems")
+	nameFlag := fs.String("name", "", "with --ci: your tool's binary name (defaults to the current directory's name)")
 	if err := fs.Parse(args); err != nil {
 		return usageError(stderr, "init", err)
 	}
 	if fs.NArg() > 0 {
-		fmt.Fprintf(stderr, "shipsmoke init: unexpected argument %q\n", fs.Arg(0))
+		fmt.Fprintf(stderr, "shipsmoke init: unexpected argument %q"+"\n", fs.Arg(0))
 		return engine.ExitUsage
 	}
-	path := config.DefaultConfigName
-	if _, err := os.Stat(path); err == nil && !*force {
-		fmt.Fprintf(stderr, "shipsmoke init: %s already exists (use --force to overwrite)\n", path)
+	if !*ci {
+		path := config.DefaultConfigName
+		if _, err := os.Stat(path); err == nil && !*force {
+			fmt.Fprintf(stderr, "shipsmoke init: %s already exists (use --force to overwrite)"+"\n", path)
+			return engine.ExitUsage
+		}
+		if err := os.WriteFile(path, []byte(config.ExampleYAML), 0o644); err != nil {
+			fmt.Fprintf(stderr, "shipsmoke init: %v"+"\n", err)
+			return engine.ExitUsage
+		}
+		fmt.Fprintf(stdout, "wrote %s — edit the artifacts section to point at your release artifacts."+"\n", path)
+		return 0
+	}
+
+	// --ci mode: generate a complete, pre-verified CI setup for an explicitly
+	// named stack. ShipSmoke does not infer arbitrary build systems.
+	stack, err := cigen.ParseStack(*stackFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "shipsmoke init: %v"+"\n", err)
 		return engine.ExitUsage
 	}
-	if err := os.WriteFile(path, []byte(config.ExampleYAML), 0o644); err != nil {
-		fmt.Fprintf(stderr, "shipsmoke init: %v\n", err)
+	name := *nameFlag
+	if name == "" {
+		wd, _ := os.Getwd()
+		name = filepath.Base(wd)
+	}
+	if err := cigen.ValidateName(name); err != nil {
+		fmt.Fprintf(stderr, "shipsmoke init: %v (pass --name to set the tool's binary name)"+"\n", err)
 		return engine.ExitUsage
 	}
-	fmt.Fprintf(stdout, "wrote %s — edit the artifacts section to point at your release artifacts.\n", path)
+	cfgYAML, wfYAML, err := cigen.Generate(stack, name)
+	if err != nil {
+		fmt.Fprintf(stderr, "shipsmoke init: %v"+"\n", err)
+		return engine.ExitUsage
+	}
+	wfDir := filepath.Join(".github", "workflows")
+	wfPath := filepath.Join(wfDir, "shipsmoke.yml")
+	for _, pair := range []struct {
+		path string
+		what string
+	}{
+		{config.DefaultConfigName, "config"},
+		{wfPath, "workflow"},
+	} {
+		if _, err := os.Stat(pair.path); err == nil && !*force {
+			fmt.Fprintf(stderr, "shipsmoke init: %s already exists (use --force to overwrite)"+"\n", pair.path)
+			return engine.ExitUsage
+		}
+	}
+	if err := os.MkdirAll(wfDir, 0o755); err != nil {
+		fmt.Fprintf(stderr, "shipsmoke init: %v"+"\n", err)
+		return engine.ExitUsage
+	}
+	if err := os.WriteFile(config.DefaultConfigName, []byte(cfgYAML), 0o644); err != nil {
+		fmt.Fprintf(stderr, "shipsmoke init: %v"+"\n", err)
+		return engine.ExitUsage
+	}
+	if err := os.WriteFile(wfPath, []byte(wfYAML), 0o644); err != nil {
+		fmt.Fprintf(stderr, "shipsmoke init: %v"+"\n", err)
+		return engine.ExitUsage
+	}
+	fmt.Fprintf(stdout,
+		"generated files for the %[1]s stack (tool %[2]q):\n"+
+			"  %[3]s          — verification config (expects %[2]s --version to print %[4]s)\n"+
+			"  %[5]s — three-platform CI: build, package, shipsmoke gate\n"+
+			"\n"+
+			"Next steps:\n"+
+			"  1. Commit both files and push; the workflow runs on ubuntu-24.04, macos-15 and windows-2025.\n"+
+			"  2. The generated checks expect %[6]q to exit 0 — adjust .shipsmoke.yml if your CLI differs.\n"+
+			"  3. Extend the build step if your release packages more files.\n"+
+			"Supported --ci stacks are exactly: go, rust, c. For other build systems copy\n"+
+			".github/workflows/example-*.yml from the shipsmoke repository and adapt it.\n",
+		stack, name, config.DefaultConfigName,
+		`"`+name+` version"`, wfPath, name+" --version")
 	return 0
 }
 
