@@ -56,7 +56,10 @@ jobs:
           VERSION="${{ steps.ver.outputs.version }}"
           EXE=""
           [ "$GOOS" = "windows" ] && EXE=".exe"
-          export CGO_ENABLED=0
+          # Both MUST be exported: shell variables alone are invisible to
+          # go build, which then compiles for the HOST arch — the bug that
+          # shipped wrong-arch artifacts in v1.0.0/v1.0.1.
+          export GOOS GOARCH CGO_ENABLED=0
           go build -trimpath \
             -ldflags "-s -w -X main.version=$VERSION -X main.commit=${GITHUB_SHA::7} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             -o "dist/shipsmoke_${GOOS}_${GOARCH}/shipsmoke${EXE}" ./cmd/shipsmoke
@@ -183,7 +186,13 @@ jobs:
 
   release:
     needs: build
-    if: github.ref_type == 'tag' && (github.event_name != 'workflow_dispatch' || inputs.dry_run == 'false')
+    # NOTE: an explicit if: replaces the implicit needs-success guard —
+    # without the needs.build.result check this job can publish while
+    # verify jobs are failing.
+    if: >-
+      github.ref_type == 'tag' &&
+      needs.build.result == 'success' &&
+      (github.event_name != 'workflow_dispatch' || inputs.dry_run == 'false')
     runs-on: ubuntu-24.04
     permissions:
       contents: write # required to create the GitHub Release
