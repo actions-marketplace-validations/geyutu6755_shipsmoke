@@ -32,6 +32,44 @@ json report: shipsmoke-report.json
 
 *(Real terminal output from the self-verification CI run.)*
 
+## Try it in one minute
+
+```bash
+# install (see all options below), then inside any Go CLI project:
+go build -o dist/mytool .                              # build
+tar -czf dist/mytool.tar.gz -C dist mytool             # package (zip on Windows)
+shipsmoke init --ci --stack go --name mytool           # generate .shipsmoke.yml + 3-platform CI
+shipsmoke check                                        # verify the artifact really runs
+```
+
+## See it block a broken release
+
+Reproduce at any time: [`examples/demo-broken-release.sh`](examples/demo-broken-release.sh)
+builds a tiny CLI, verifies it, truncates the archive like a broken upload,
+and re-verifies — real output from a Windows machine:
+
+```text
+== 2. verify the GOOD artifact ==
+  demo  format=zip (detected: windows/amd64)
+    [PASS] check #1: demo.exe --version (166ms)
+  summary: 1 passed, 0 failed, 0 skipped, 0 errored  →  PASS
+
+== 3. break the artifact the way a broken upload would (truncate) ==
+truncated to 741624 of 1483249 bytes
+
+== 4. verify the BROKEN artifact: the gate must fail ==
+  [ERROR] demo — archive could not be extracted safely: not a readable zip archive: zip: not a valid zip file
+  summary: 0 passed, 0 failed, 0 skipped, 1 errored  →  FAIL
+
+== 5. publish step would be skipped (verify exited 1) ==
+```
+
+The same gate, running from an **independent project** (not this repo's own
+tests), on all three operating systems:
+[shipsmoke-integration](https://github.com/geyutu6755/shipsmoke-integration/actions)
+— including jobs that corrupt an artifact on purpose and require the gate to
+fail ([latest run](https://github.com/geyutu6755/shipsmoke-integration/actions/runs/41266540816)).
+
 ## Why ShipSmoke
 
 Checksums tell you an upload was not corrupted in transit. They do not tell

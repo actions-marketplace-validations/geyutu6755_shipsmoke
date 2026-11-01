@@ -223,6 +223,11 @@ func (r *Report) Terminal(w io.Writer, useColor bool, red *Redactor) {
 	if s.Executed == 0 && s.Overall == StatusNoChecks {
 		line("  nothing was executed: every check was skipped. This fails by default")
 		line("  so CI cannot go green on a misconfiguration (use --allow-empty to allow).")
+		line("  → docs/TROUBLESHOOTING.md#exit-code-3--nothing-was-executed")
+	}
+	if s.Failed > 0 || s.Errored > 0 {
+		line("  next steps: read the failure reasons above and the reproduce command;")
+		line("  the full diagnosis guide is docs/TROUBLESHOOTING.md, config reference docs/CONFIGURATION.md")
 	}
 	line("")
 }
