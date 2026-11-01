@@ -28,10 +28,14 @@ jobs:
           - { target: windows/amd64, os: windows-2025, pkg: zip }
           - { target: windows/arm64, os: windows-2025, pkg: zip }
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write # required for build provenance attestations
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
           cache: true
@@ -87,7 +91,7 @@ jobs:
 
       - name: Set up QEMU (executes the linux/arm64 artifact in a container)
         if: matrix.target == 'linux/arm64'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
       - name: Verify artifact runs before publishing
         shell: bash
@@ -178,11 +182,20 @@ jobs:
           fi
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: shipsmoke-${{ matrix.os }}-${{ strategy.job-index }}
           path: dist/shipsmoke_*
           retention-days: 7
+
+      # Signed build provenance (SLSA) for every released archive; verifiable
+      # with: gh attestation verify <file> -R geyutu6755/shipsmoke
+      - name: Generate build provenance attestation
+        if: github.ref_type == 'tag'
+        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1
+        with:
+          subject-path: 'dist/shipsmoke_*'
+          subject-name: 'shipsmoke-release-${{ matrix.target }}' 
 
   release:
     needs: build
@@ -197,10 +210,10 @@ jobs:
     permissions:
       contents: write # required to create the GitHub Release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download all built artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
           pattern: shipsmoke-*
@@ -218,8 +231,38 @@ jobs:
           rm -f *.sha256
           ls -la
 
+      # Independent re-verification of the exact bytes that will be attached:
+      # the per-asset hashes were computed in the build jobs; here they are
+      # recomputed from the downloaded artifacts and must match checksums.txt
+      # bit-for-bit, or the release is aborted before publishing.
+      - name: Re-verify release assets against checksums.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release
+          HASH_OK=0
+          while IFS= read -r line; do
+            EXPECTED="$(printf '%s' "$line" | awk '{print $1}')"
+            FILE="$(printf '%s' "$line" | awk '{print $2}' | tr -d '*')"
+            [ -f "$FILE" ] || { echo "::error::checksums.txt lists missing file: $FILE"; exit 1; }
+            ACTUAL="$(sha256sum "$FILE" | awk '{print $1}')"
+            if [ "$ACTUAL" != "$EXPECTED" ]; then
+              echo "::error::SHA-256 mismatch for $FILE: expected $EXPECTED, got $ACTUAL"
+              exit 1
+            fi
+            HASH_OK=$((HASH_OK + 1))
+            echo "verified: $FILE = $EXPECTED"
+          done < checksums.txt
+          # Every published archive must be covered by the manifest.
+          COUNT=$(ls -1 | grep -cE '^shipsmoke_.*\.(tar\.gz|zip)$')
+          [ "$HASH_OK" -eq "$COUNT" ] || {
+            echo "::error::checksum coverage incomplete: $HASH_OK verified for $COUNT archives"
+            exit 1
+          }
+          echo "all $HASH_OK release assets re-verified against checksums.txt"
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: release/*
           body_path: .github/RELEASE_BODY.md

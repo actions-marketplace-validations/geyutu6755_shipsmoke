@@ -55,23 +55,23 @@ if [ -n "${SHIPS_BINARY_PATH:-}" ]; then
 fi
 
 # --- version pinning ---------------------------------------------------------
+# Strict grammar: "latest" or "vX.Y.Z" with X/Y/Z as plain integers without
+# leading zeros. Moving refs (v1, v1.0), prerelease/build suffixes
+# (v1.0.2-rc1, +build) and padding (v01.02.03) are all rejected here — the
+# download URL must be an exact, immutable release asset path.
 VERSION="${SHIPS_VERSION:-latest}"
 [ -n "$VERSION" ] || VERSION="latest"
-case "$VERSION" in
-  latest) ;;
-  v[0-9]*.[0-9]*.[0-9]*) ;;
-  *)
-    die "version '$VERSION' is not accepted: use 'latest' or a full release tag 'vX.Y.Z' (moving refs like 'v1' are rejected here; pin the exact release for reproducible verification)"
-    ;;
-esac
+is_exact_tag() {
+  printf '%s' "$1" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+}
+if [ "$VERSION" != "latest" ] && ! is_exact_tag "$VERSION"; then
+  die "version '$VERSION' is not accepted: use 'latest' or a full release tag 'vX.Y.Z' (moving refs like 'v1', prerelease suffixes and leading zeros are rejected; pin the exact release for reproducible verification)"
+fi
 
 TAG="$VERSION"
 if [ "$VERSION" = "latest" ]; then
   TAG="$(curl -fsSL --retry 3 --retry-delay 2 -o /dev/null -w '%{url_effective}' "$LATEST_URL" | sed 's#.*/tag/##')"
-  case "$TAG" in
-    v[0-9]*.[0-9]*.[0-9]*) ;;
-    *) die "could not resolve the latest release tag (got '$TAG')" ;;
-  esac
+  is_exact_tag "$TAG" || die "could not resolve the latest release tag (got '$TAG')"
   log "resolved latest release: $TAG"
 fi
 

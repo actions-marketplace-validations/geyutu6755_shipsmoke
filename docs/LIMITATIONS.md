@@ -53,14 +53,16 @@ flag — these are scope decisions with reasons.
 - Devices and FIFOs are rejected.
 - Extraction limits are configurable but always on: entry count, per-file
   size, total size, compression ratio.
-- **Documented leniency (Go standard library behavior):** for a tar.gz whose
-  tar payload is structurally complete, corrupted bytes *inside file
-  contents* do not fail extraction — the tar reader stops at the zero end
-  blocks and the gzip member CRC is never reached. Truncated archives, broken
-  gzip headers and structurally broken tars ARE rejected. This is why the
-  checksum verification of a downloaded artifact (cosign/attestations or a
-  published checksums.txt) remains the tool for content integrity, and why
-  the shipsmoke action verifies SHA-256 before executing anything.
+- **gzip member integrity is verified since v1.0.3** (fixed leniency): the
+  extractor drains the full gzip member after the tar payload ends, so the
+  CRC32/ISIZE trailer is always checked — corrupted payload bytes, corrupt
+  CRC fields and truncated trailers now fail extraction. Two accepted
+  leniencies remain: (1) trailing bytes *after* a complete gzip member are
+  ignored (the payload itself is complete and verified), and (2) archive
+  integrity cannot tell whether an executable's content is functionally
+  correct — that is layer 3's job. See
+  [VERIFICATION_LAYERS.md](VERIFICATION_LAYERS.md) for the three-layer
+  model.
 
 ## Environment
 

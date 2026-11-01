@@ -171,6 +171,11 @@ func ExtractTarGz(archivePath, destDir string, limits Limits) (*Result, error) {
 		return nil, fmt.Errorf("not a readable gzip stream: %w", err)
 	}
 	defer gz.Close()
+	// Verify exactly the first gzip member and ignore anything after it.
+	// Multistream mode would try to parse trailing bytes as further members;
+	// a complete tar payload followed by junk stays an accepted (documented)
+	// leniency, while the member's own CRC/ISIZE are always checked below.
+	gz.Multistream(false)
 	tr := tar.NewReader(gz)
 
 	res := &Result{}
@@ -246,6 +251,14 @@ func ExtractTarGz(archivePath, destDir string, limits Limits) (*Result, error) {
 	}
 	if entries == 0 {
 		return nil, unsafef("tar archive contains no entries")
+	}
+	// The tar reader stops at its zero end-blocks and never reads the gzip
+	// trailer on its own, so a corrupted or truncated deflate stream could
+	// otherwise go unnoticed (v1.0.2 leniency, fixed in v1.0.3). Drain the
+	// remainder of the member: this forces gzip to verify the CRC32 and
+	// ISIZE trailer, and reports truncated/corrupt stream tails.
+	if _, err := io.Copy(io.Discard, gz); err != nil {
+		return nil, fmt.Errorf("gzip stream failed its integrity check (CRC/size): %w", err)
 	}
 	// Compression-ratio check for the whole stream.
 	if fi.Size() > 0 && counted/fi.Size() > limits.MaxCompressionRatio && counted > 8<<20 {

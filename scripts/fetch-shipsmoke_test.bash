@@ -93,6 +93,11 @@ run_case version-moving-ref 2 "SHIPS_VERSION=v1"
 run_case version-partial 2 "SHIPS_VERSION=v1.0"
 run_case version-no-v 2 "SHIPS_VERSION=1.0.0"
 run_case version-traversal 2 "SHIPS_VERSION=../v1.0.0"
+run_case version-prerelease 2 "SHIPS_VERSION=v1.0.2-rc1"
+run_case version-build-meta 2 "SHIPS_VERSION=v1.0.2+build.5"
+run_case version-leading-zero 2 "SHIPS_VERSION=v01.0.2"
+run_case version-space-suffix 2 "SHIPS_VERSION=v1.0.2 "
+run_case version-ok-shape-then-fail 2 "SHIPS_VERSION=v9.9.9"
 run_case version-injection-1 2 "SHIPS_VERSION=v1.0.0\"; touch $PWNED; #"
 run_case version-injection-2 2 'SHIPS_VERSION=$(touch '"$PWNED"')'
 assert_no_pwned
@@ -112,7 +117,7 @@ case "$HOST_OS" in linux*) P_OS=linux ;; darwin*) P_OS=darwin ;; mingw*|msys*|cy
 case "$HOST_ARCH" in x86_64) P_ARCH=amd64 ;; aarch64|arm64) P_ARCH=arm64 ;; esac
 EXT="tar.gz"; [ "$P_OS" = "windows" ] && EXT="zip"
 ASSET="shipsmoke_${P_OS}_${P_ARCH}.${EXT}"
-TAG="v9.9.9-test"
+TAG="v9.9.99"
 SRV_ROOT="$WORK/release/$TAG"
 mkdir -p "$SRV_ROOT"
 
