@@ -110,10 +110,15 @@ case "$EXPECTED" in
   [0-9a-fA-F]*) ;;
   *) die "malformed checksum entry for $ASSET" ;;
 esac
+hex_of() {
+  # Different sha256sum builds decorate output differently (binary-mode
+  # markers, path suffixes); extract the 64-hex-digit digest robustly.
+  "$@" | grep -Eo '[0-9a-fA-F]{64}' | head -1
+}
 if command -v sha256sum >/dev/null 2>&1; then
-  ACTUAL="$(sha256sum "$DEST/$ASSET" | awk '{print $1}')"
+  ACTUAL="$(hex_of sha256sum "$DEST/$ASSET")"
 elif command -v shasum >/dev/null 2>&1; then
-  ACTUAL="$(shasum -a 256 "$DEST/$ASSET" | awk '{print $1}')"
+  ACTUAL="$(hex_of shasum -a 256 "$DEST/$ASSET")"
 else
   die "no SHA-256 tool available (need sha256sum or shasum)"
 fi

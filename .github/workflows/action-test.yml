@@ -68,7 +68,9 @@ jobs:
           [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
           go build -o "demo-shipsmoke$EXE" ./cmd/shipsmoke
           mkdir -p demo-dist
-          go build -o "demo-dist/gokit$EXE" ./examples/go-cli
+          # examples/go-cli is its own Go module (nested go.mod): build from
+          # inside it, not as a package of the main module.
+          (cd examples/go-cli && go build -o "../../demo-dist/gokit$EXE" .)
           if [ "$RUNNER_OS" = "Windows" ]; then
             powershell -NoProfile -Command "Compress-Archive -Path demo-dist/gokit.exe -DestinationPath demo-dist/gokit.zip -Force"
           else
