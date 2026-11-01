@@ -1,35 +1,38 @@
-## ShipSmoke v1.0.2
+## ShipSmoke v1.0.3
 
 **Test what users actually download.**
 
-Security and usability revision of the release-verification action.
+Reliability, docs-experience and adoption-readiness release.
 
-### Security fixes in the GitHub Action
+### Fixed
 
-- **No more script injection:** all action inputs reach shell code only via
-  environment variables; automated injection-regression tests on Windows,
-  Linux and macOS prove hostile input values fail inertly.
-- **Downloads are verified before execution:** fetched release assets are
-  SHA-256 checked against `checksums.txt`; mismatches abort before any
-  extraction or execution. Step output `verified` reports how the binary
-  was obtained (`checksum` or `user-provided`).
-- **Strict version pinning:** `version:` accepts `latest` or a full
-  `vX.Y.Z` tag only. The `v1` moving tag now exists for `uses:` and tracks
-  this release.
+- **tar.gz integrity (the headline fix):** the extractor now always verifies
+  the full gzip member CRC — corrupted payload bytes, corrupt CRC fields and
+  truncated trailers fail extraction instead of passing silently. Trailing
+  bytes after a complete member remain accepted (documented leniency).
+  Five corruption fixtures cover each failure class; the three verification
+  layers (download checksum / archive integrity / real-run) are documented
+  in docs/VERIFICATION_LAYERS.md.
 
-### Execution coverage of this release's own artifacts
+### Security
 
-| Artifact | Verification |
-|---|---|
-| linux/amd64 | native on ubuntu-24.04 |
-| linux/arm64 | QEMU arm64 container (ubuntu:24.04) |
-| darwin/arm64 | native on macos-15 |
-| darwin/amd64 | Rosetta 2 |
-| windows/amd64 | native on windows-2025 |
-| windows/arm64 | build-only (no execution path on x64 runners; recorded, not faked) |
+- Third-party Actions pinned to commit SHAs across all workflows.
+- Build-provenance attestations for every release archive:
+  `gh attestation verify <archive> -R geyutu6755/shipsmoke`
+- The release job re-verifies every asset's SHA-256 against checksums.txt
+  before attaching it.
+- Stricter version grammar in the action's fetch step.
 
-Every executable mode runs shipsmoke's own check against the packaged
-artifact before publishing.
+### New
+
+- `shipsmoke init --ci --stack go|rust|c --name <tool>` — generates a
+  three-platform build, then package, then verify workflow from the verified
+  harness shape. Explicit stacks; no build-system guessing.
+- Homebrew tap and Scoop bucket (installed-and-tested in their own CI):
+  `brew install geyutu6755/tap/shipsmoke`
+  `scoop bucket add geyutu6755 https://github.com/geyutu6755/scoop-bucket`
+- Tutorials for Go, Rust and C; real broken-release demo
+  (examples/demo-broken-release.sh); failure guidance in reports.
 
 ### Downloads
 
@@ -43,14 +46,7 @@ artifact before publishing.
 | `shipsmoke_windows_arm64.zip` | Windows ARM64 |
 | `checksums.txt` | SHA-256 checksums |
 
-## Install
-
-```
-go install github.com/geyutu6755/shipsmoke/cmd/shipsmoke@v1.0.2
-```
-
-or download the archive for your platform and run `./shipsmoke version`.
-
-See the [README](https://github.com/geyutu6755/shipsmoke#readme) for full
-documentation and [SECURITY.md](https://github.com/geyutu6755/shipsmoke/blob/main/SECURITY.md)
-for the security model (shipsmoke runs programs; it is not a sandbox).
+Verification coverage of this release: linux/amd64, darwin/arm64,
+windows/amd64 native; linux/arm64 in a QEMU container; darwin/amd64 under
+Rosetta; windows/arm64 build-only (no x64 execution path — recorded, not
+faked).

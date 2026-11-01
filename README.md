@@ -104,11 +104,23 @@ curl -fsSL -o shipsmoke.tar.gz \
 tar -xzf shipsmoke.tar.gz && ./shipsmoke version
 ```
 
-**With Go:**
+**Package managers:**
 
 ```bash
+# Homebrew (macOS/Linux)
+brew install geyutu6755/tap/shipsmoke
+
+# Scoop (Windows)
+scoop bucket add geyutu6755 https://github.com/geyutu6755/scoop-bucket
+scoop install shipsmoke
+
+# Go
 go install github.com/geyutu6755/shipsmoke/cmd/shipsmoke@latest
 ```
+
+The tap and bucket are re-installed and tested in CI on every push
+([tap runs](https://github.com/geyutu6755/homebrew-tap/actions),
+[bucket runs](https://github.com/geyutu6755/scoop-bucket/actions)).
 
 Every released archive is packaged and then verified by ShipSmoke itself on a
 real runner before publishing (see the release workflow).
@@ -309,11 +321,15 @@ shipsmoke version    version, commit, platform
 
 ## Documentation
 
+- [One-minute quickstart](#try-it-in-one-minute) and [tutorials](docs/TUTORIAL_GO.md) (Go / [Rust](docs/TUTORIAL_RUST.md) / [C](docs/TUTORIAL_C.md))
+- [Verification layers](docs/VERIFICATION_LAYERS.md) — download-integrity vs archive-integrity vs real-run
 - [Configuration reference](docs/CONFIGURATION.md) — full schema, matchers, CI recipes
 - [System design](docs/SYSTEM_DESIGN.md) — architecture and data model
 - [Threat model](docs/THREAT_MODEL.md) — what is protected and what is not
 - [Limitations](docs/LIMITATIONS.md) — supported formats and honest boundaries
 - [Troubleshooting](docs/TROUBLESHOOTING.md) — common failure diagnoses
+- [Supply-chain boundaries](docs/SUPPLY_CHAIN.md) — what CI trusts and why
+- [Maintainer introduction](docs/INTRODUCTION.md) · [Candidate projects](docs/CANDIDATES.md) · [Adoption tracking](docs/ADOPTION.md)
 - [Research](docs/RESEARCH.md) — competitive landscape and name check
 - [Validation report](docs/VALIDATION_REPORT.md) — every claim, backed by CI run links
 - [Development status](docs/DEVELOPMENT_STATUS.md) — phase-by-phase record

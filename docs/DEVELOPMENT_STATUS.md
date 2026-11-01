@@ -64,6 +64,21 @@ Living document. Updated at the end of every phase.
 - Independent integration repo green on 3 OSes via `@v1` + `version: v1.0.2`.
 - Release: https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.2
 
+## v1.0.3 maintenance round (2026-11-01)
+
+- tar.gz gzip CRC now always verified (payload corruption, corrupt CRC,
+  truncated trailers fail; trailing-garbage leniency kept and documented);
+  5 corruption fixtures; docs/VERIFICATION_LAYERS.md.
+- Strict version grammar in the action fetch step; release job re-verifies
+  all assets against checksums.txt; third-party Actions SHA-pinned;
+  build-provenance attestations; docs/SUPPLY_CHAIN.md.
+- `shipsmoke init --ci --stack go|rust|c` (e2e-verified); Go/Rust/C
+  tutorials; README rewritten onboarding (no placeholder scripts); real
+  broken-release demo in examples/ and README.
+- Homebrew tap + Scoop bucket shipped with CI install-tests (green).
+- docs: INTRODUCTION, ADOPTION (tiered honest adoption tracking),
+  CANDIDATES (8 evidence-based projects; no outreach performed).
+
 ## Final state
 
 - Repository: https://github.com/geyutu6755/shipsmoke (public, MIT)

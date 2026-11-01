@@ -4,6 +4,50 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-11-01
+
+### Fixed
+
+- **tar.gz integrity:** the extractor now drains the full gzip member after
+  the tar payload ends, so the CRC32/ISIZE trailer is always verified.
+  Corrupted payload bytes, corrupt CRC fields and truncated trailers fail
+  extraction; trailing bytes after a complete member remain accepted
+  (documented). Five corruption fixtures added; see
+  docs/VERIFICATION_LAYERS.md for the three-layer model.
+
+### Security
+
+- All third-party Actions in this repository's workflows pinned to commit
+  SHAs; build-provenance attestations (SLSA) generated for every released
+  archive (`gh attestation verify`); release job re-verifies every downloaded
+  asset against checksums.txt before publishing. Audit: docs/SUPPLY_CHAIN.md.
+- Action `version:` grammar hardened: strict `vX.Y.Z` (no moving refs, no
+  prerelease suffixes, no leading zeros); 28 fetch-script tests.
+
+### Added
+
+- `shipsmoke init --ci --stack go|rust|c --name <tool>`: generates
+  `.shipsmoke.yml` plus a three-platform GitHub workflow (build, package,
+  shipsmoke gate) mirroring the verified integration harness; explicit
+  stack contract, no build-system inference. End-to-end verified.
+- Tutorials: docs/TUTORIAL_GO.md (executed end-to-end), TUTORIAL_RUST.md and
+  TUTORIAL_C.md (1:1 with the example workflows that run in CI).
+- Distribution: Homebrew tap ([geyutu6755/homebrew-tap]) and Scoop bucket
+  ([geyutu6755/scoop-bucket]), both installed-and-tested in their own CI.
+- docs: VERIFICATION_LAYERS, SUPPLY_CHAIN, INTRODUCTION, ADOPTION,
+  CANDIDATES (evidence-based research; no outreach performed).
+- README: real broken-release demo output, one-minute quickstart, failure
+  guidance now points at TROUBLESHOOTING/CONFIGURATION.
+
+### Fixed (docs)
+
+- README, the Chinese README and CONFIGURATION.md no longer reference
+  placeholder scripts (./build.sh, ./publish.sh); every example is
+  copy-pasteable.
+
+[geyutu6755/homebrew-tap]: https://github.com/geyutu6755/homebrew-tap
+[geyutu6755/scoop-bucket]: https://github.com/geyutu6755/scoop-bucket
+
 ## [1.0.2] - 2026-11-01
 
 ### Security

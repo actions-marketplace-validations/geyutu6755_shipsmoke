@@ -63,11 +63,23 @@ curl -fsSL -o shipsmoke.tar.gz \
 tar -xzf shipsmoke.tar.gz && ./shipsmoke version
 ```
 
-**使用 Go 安装：**
+**包管理器：**
 
 ```bash
+# Homebrew（macOS/Linux）
+brew install geyutu6755/tap/shipsmoke
+
+# Scoop（Windows）
+scoop bucket add geyutu6755 https://github.com/geyutu6755/scoop-bucket
+scoop install shipsmoke
+
+# Go
 go install github.com/geyutu6755/shipsmoke/cmd/shipsmoke@latest
 ```
+
+tap 与 bucket 在每次推送时都会于 CI 中真实安装并测试
+（[tap 运行记录](https://github.com/geyutu6755/homebrew-tap/actions)、
+[bucket 运行记录](https://github.com/geyutu6755/scoop-bucket/actions)）。
 
 每个发布压缩包在发布前都由 ShipSmoke 本身在真实 runner 上验证过（见
 release 工作流）。
