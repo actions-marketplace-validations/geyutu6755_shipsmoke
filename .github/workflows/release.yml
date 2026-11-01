@@ -151,19 +151,12 @@ jobs:
             qemu-container) CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o verifier-arm64 ./cmd/shipsmoke; VERIFIER_CMD="/work/verifier-arm64" ;;
             rosetta)        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o verifier-amd64 ./cmd/shipsmoke; VERIFIER_CMD="arch -x86_64 ./verifier-amd64" ;;
           esac
-          cat > .shipsmoke-release.yml <<EOF
-          version: 1
-          artifacts:
-            - name: shipsmoke-${GOOS}-${GOARCH}
-              path: dist/shipsmoke_${GOOS}_${GOARCH}.${EXT}
-              binary: ${ENTRY}
-              runs_on: [$GOOS/$GOARCH]
-              checks:
-                - args: ["version"]
-                  expect:
-                    exit_code: 0
-                    stdout_contains: ["${VERSION}"]
-          EOF
+          # printf, not a heredoc: inside an indented YAML block scalar an
+          # indented "EOF" terminator never closes the heredoc, which would
+          # silently swallow the verify command below (v1.0.1 bug).
+          printf 'version: 1\nartifacts:\n  - name: shipsmoke-%s-%s\n    path: dist/shipsmoke_%s_%s.%s\n    binary: %s\n    runs_on: [%s/%s]\n    checks:\n      - args: ["version"]\n        expect:\n          exit_code: 0\n          stdout_contains: ["%s"]\n' \
+            "$GOOS" "$GOARCH" "$GOOS" "$GOARCH" "$EXT" "$ENTRY" "$GOOS" "$GOARCH" "$VERSION" > .shipsmoke-release.yml
+          cat .shipsmoke-release.yml
           if [ "$MODE" = "native" ]; then
             $VERIFIER_CMD check --config .shipsmoke-release.yml
           elif [ "$MODE" = "qemu-container" ]; then

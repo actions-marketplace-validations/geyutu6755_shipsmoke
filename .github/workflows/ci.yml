@@ -126,19 +126,12 @@ jobs:
             ART="dist/shipsmoke_${cfg_target//\//_}.tar.gz"
             ENTRY="shipsmoke/shipsmoke"
           fi
-          cat > .shipsmoke-self.yml <<EOF
-          version: 1
-          artifacts:
-            - name: shipsmoke-$name
-              path: $ART
-              binary: $ENTRY
-              runs_on: [$cfg_target]
-              checks:
-                - args: ["version"]
-                  expect:
-                    exit_code: 0
-                    stdout_contains: ["shipsmoke"]
-          EOF
+          # printf, not a heredoc: inside an indented YAML block scalar an
+          # indented "EOF" terminator would never close the heredoc and would
+          # silently swallow the check command (v1.0.1 bug).
+          printf 'version: 1\nartifacts:\n  - name: shipsmoke-%s\n    path: %s\n    binary: %s\n    runs_on: [%s]\n    checks:\n      - args: ["version"]\n        expect:\n          exit_code: 0\n          stdout_contains: ["shipsmoke"]\n' \
+            "$name" "$ART" "$ENTRY" "$cfg_target" > .shipsmoke-self.yml
+          cat .shipsmoke-self.yml
           "$BIN" check --config .shipsmoke-self.yml
 
       - name: Upload packaged artifact

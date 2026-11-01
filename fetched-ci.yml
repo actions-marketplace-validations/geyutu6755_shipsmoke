@@ -1,0 +1,129 @@
+name: integration
+
+# Independent end-to-end test: an outside project consumes the shipsmoke
+# action (pinned to an exact shipsmoke commit for the tool download) on all
+# three operating systems and asserts the full flow, including the refusal
+# path for a tampered artifact.
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: teapot + shipsmoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Build and package teapot
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          mkdir -p dist
+          go build -o "dist/teapot$EXE" .
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            powershell -NoProfile -Command "Compress-Archive -Path dist/teapot.exe -DestinationPath dist/teapot.zip -Force"
+          else
+            tar -czf dist/teapot.tar.gz -C dist teapot
+          fi
+
+      # The action, consumed exactly as an external user would. The SHA pin
+      # guarantees this workflow tests precisely the reviewed action code.
+      - name: 'Verify teapot release artifact (shipsmoke action)'
+        id: verify
+        uses: geyutu6755/shipsmoke@541781ac40012ab68c90c9ee60a2dcbc0180c0c9
+        with:
+          config: .shipsmoke.yml
+          report: shipsmoke-report.json
+          version: v1.0.1
+
+      - name: Assert exit code, verified provenance, and report
+        shell: bash
+        env:
+          REPORT: shipsmoke-report.json
+        run: |
+          set -euo pipefail
+          [ "${{ steps.verify.outputs.exit-code }}" = "0" ] || { echo "exit-code=${{ steps.verify.outputs.exit-code }}, want 0"; exit 1; }
+          [ "${{ steps.verify.outputs.verified }}" = "checksum" ] || { echo "verified=${{ steps.verify.outputs.verified }}, want checksum"; exit 1; }
+          [ "${{ steps.verify.outputs.resolved-version }}" = "v1.0.1" ] || { echo "resolved-version=${{ steps.verify.outputs.resolved-version }}"; exit 1; }
+          python - "$REPORT" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+assert d["summary"]["overall"] == "PASS", d["summary"]
+assert d["summary"]["executed"] >= 1, d["summary"]
+print("report OK:", d["summary"])
+PYEOF
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-report-${{ matrix.os }}
+          path: shipsmoke-report.json
+          if-no-files-found: ignore
+
+  refuse-tampered:
+    name: tampered artifact must fail (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Build and package teapot, then corrupt the archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          mkdir -p dist
+          go build -o "dist/teapot$EXE" .
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            powershell -NoProfile -Command "Compress-Archive -Path dist/teapot.exe -DestinationPath dist/teapot.zip -Force"
+          else
+            tar -czf dist/teapot.tar.gz -C dist teapot
+          fi
+          # Corrupt the packaged artifact the way a broken upload would.
+          printf 'CORRUPTION' >> dist/teapot.tar.gz
+          printf 'CORRUPTION' >> dist/teapot.zip 2>/dev/null || true
+
+      - name: 'Run shipsmoke action against the tampered artifact (expect failure)'
+        id: tampered
+        continue-on-error: true
+        uses: geyutu6755/shipsmoke@541781ac40012ab68c90c9ee60a2dcbc0180c0c9
+        with:
+          config: .shipsmoke.yml
+          report: ''
+          version: v1.0.1
+
+      - name: Assert the action failed the job
+        shell: bash
+        run: |
+          set -euo pipefail
+          outcome="${{ steps.tampered.outcome }}"
+          [ "$outcome" = "failure" ] || { echo "tampered artifact did not fail the step (outcome=$outcome)"; exit 1; }
+          code="${{ steps.tampered.outputs.exit-code }}"
+          [ "$code" = "1" ] || { echo "exit-code=$code, want 1 for a failed check"; exit 1; }
+          echo "tampered artifact correctly failed the gate (exit-code=$code)"
