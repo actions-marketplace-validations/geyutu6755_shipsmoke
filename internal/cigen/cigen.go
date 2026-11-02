@@ -14,6 +14,7 @@ package cigen
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -202,6 +203,43 @@ type PublishedAssets struct {
 // placeholderPrefix marks an asset name the maintainer still has to fill in.
 const placeholderPrefix = "SET-ME-"
 
+// assetPattern is deliberately narrow: release asset names in the wild are
+// made of these characters. Anything else is rejected rather than embedded,
+// because the value is written into two YAML files and then used to build a
+// download URL. A newline would close the mapping and inject keys into a
+// workflow that runs with the caller's token; "*", "#" or a leading space
+// corrupts the emitted document outright.
+var assetPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+~-]{0,254}$`)
+
+// ValidateAsset checks one user-supplied release asset name.
+func ValidateAsset(name string) error {
+	if name == "" {
+		return nil // absent is fine: it becomes a placeholder
+	}
+	if !assetPattern.MatchString(name) {
+		return fmt.Errorf("asset name %q is not usable: use letters, digits, '.', '_', '+', '~', '-' and start with a letter or digit (no spaces, slashes, quotes, ':' or newlines)", name)
+	}
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("asset name %q contains '..' which cannot be part of a release asset path", name)
+	}
+	return nil
+}
+
+// ValidateAssets checks every supplied asset name, naming the platform so the
+// error says which flag to fix.
+func ValidateAssets(a PublishedAssets) error {
+	for _, p := range []struct{ label, value string }{
+		{"--asset-linux", a.Linux},
+		{"--asset-darwin", a.Darwin},
+		{"--asset-windows", a.Windows},
+	} {
+		if err := ValidateAsset(p.value); err != nil {
+			return fmt.Errorf("%s: %w", p.label, err)
+		}
+	}
+	return nil
+}
+
 func publishedAsset(given, suggestion string) string {
 	if strings.TrimSpace(given) == "" {
 		return placeholderPrefix + suggestion
@@ -238,13 +276,19 @@ func GeneratePublished(name string, assets PublishedAssets) (config string, work
 	if err := ValidateName(name); err != nil {
 		return "", "", err
 	}
+	if err := ValidateAssets(assets); err != nil {
+		return "", "", err
+	}
 	a := assets.Resolve()
 	return publishedConfigYAML(name, a), publishedWorkflowYAML(name, a), nil
 }
 
 func publishedArtifactYAML(tool, artName, asset, binary, runsOn string) string {
+	// Quoted so a name that is grammatically valid but YAML-ambiguous (a leading
+	// '*', '~', '>', or something that looks like a date) still round-trips as
+	// the literal asset name.
 	return fmt.Sprintf(`  - name: %[2]s
-    path: dist/%[3]s
+    path: "dist/%[3]s"
     binary: %[4]s
     runs_on: [%[5]s]
     checks:
@@ -316,13 +360,13 @@ jobs:
         include:
           - os: ubuntu-24.04
             artifact: %[1]s-linux
-            asset: %[2]s
+            asset: "%[2]s"
           - os: macos-15
             artifact: %[1]s-macos
-            asset: %[3]s
+            asset: "%[3]s"
           - os: windows-2025
             artifact: %[1]s-windows
-            asset: %[4]s
+            asset: "%[4]s"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: %[6]s
@@ -343,10 +387,14 @@ jobs:
             echo "::error::no tag to verify: trigger on a published release or pass inputs.tag"
             exit 1
           fi
-          case "$TAG" in
-            v[0-9]*.[0-9]*.[0-9]*|v[0-9]*.[0-9]*|[0-9]*.[0-9]*.[0-9]*|[0-9]*.[0-9]*|v[0-9]*.[0-9]*.[0-9]*-*|[0-9]*.[0-9]*.[0-9]*-*) ;;
-            *) echo "::error::refusing unexpected release tag: $TAG"; exit 1 ;;
-          esac
+          # Anchored, single-line grammar. A shell case pattern like v[0-9]*
+          # means "digit then anything at all", so it would accept newlines and
+          # '../' and then write them into GITHUB_OUTPUT and into log lines.
+          if ! printf '%%s' "$TAG" | grep -Eq '^(v)?[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9A-Za-z][0-9A-Za-z.-]*)?$'; then
+            echo "::error::refusing unexpected release tag (expected vX.Y.Z, optionally with a prerelease suffix)"
+            printf 'rejected value (quoted, control chars visible): %%q\n' "$TAG"
+            exit 1
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Refuse unfilled asset placeholders

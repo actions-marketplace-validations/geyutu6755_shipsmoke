@@ -3,6 +3,7 @@ package cigen
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -197,6 +198,25 @@ func TestPublishedWorkflowStructure(t *testing.T) {
 	if !strings.Contains(wf, "version: v1.0.3") {
 		t.Error("must pin a released shipsmoke version")
 	}
+	// The shell text must survive Go's format engine: a bare %s inside the
+	// template is a positional verb, and it silently substitutes an argument
+	// (observed: printf '%s' "$TAG" rendered as the upload-artifact ref).
+	if !strings.Contains(wf, `printf '%s' "$TAG" | grep -Eq`) {
+		t.Errorf("tag grammar line was mangled by format substitution:\n%s", wf)
+	}
+	if strings.Contains(wf, `%!`) {
+		t.Error("a format verb was left unresolved")
+	}
+	// The grammar itself must be anchored and single-line: a shell case pattern
+	// like v[0-9]* accepts newlines and '../'.
+	if strings.Contains(wf, "case \"$TAG\" in") {
+		t.Error("tag validation regressed to a shell case pattern, which is not a validator")
+	}
+	for _, want := range []string{"^(v)?[0-9]+\\.[0-9]+", "grep -Eq"} {
+		if !strings.Contains(wf, want) {
+			t.Errorf("tag grammar missing %q", want)
+		}
+	}
 }
 
 // TestGeneratedWorkflowsNeverInterpolateInRunBlocks enforces the repo-wide
@@ -239,28 +259,46 @@ func TestGeneratedWorkflowsNeverInterpolateInRunBlocks(t *testing.T) {
 				}
 			}
 		}
-		// Third-party actions must stay SHA-pinned in generated output.
-		for _, ref := range []string{"actions/checkout@", "actions/upload-artifact@", "actions/setup-go@"} {
-			for _, line := range strings.Split(wf, "\n") {
-				if i := strings.Index(line, ref); i >= 0 {
-					rest := strings.TrimSpace(line[i+len(ref):])
-					tag := strings.Fields(rest)[0]
-					if len(tag) != 40 {
-						t.Errorf("%s: %s%s is not pinned to a commit SHA", name, ref, tag)
-					}
-				}
-			}
+		// Third-party actions must stay SHA-pinned in generated output. Checked
+		// per line with an anchored pattern so trailing text (a comment, the
+		// literal shell text of a nearby step) cannot confuse the parse.
+		shaForm := regexp.MustCompile(`actions/(?:checkout|setup-go|upload-artifact|download-artifact)@[0-9a-f]{40}(?:\s|$)`)
+		movable := regexp.MustCompile(`actions/(?:checkout|setup-go|upload-artifact|download-artifact)@v[0-9]`)
+		if movable.MatchString(wf) {
+			t.Errorf("%s: a third-party action is pinned to a movable tag", name)
+		}
+		wanted := 1
+		if name == "go" {
+			wanted = 2 // checkout + setup-go
+		}
+		if got := len(shaForm.FindAllString(wf, -1)); got < wanted {
+			t.Errorf("%s: found %d SHA-pinned action refs, expected at least %d", name, got, wanted)
 		}
 	}
 }
 
-func TestPublishedConfigAndWorkflowMatchTrialFiles(t *testing.T) {
-	// The committed example must not drift from what the generator emits, since
-	// docs point readers at it.
-	cfg, wf, err := GeneratePublished("wordcount", PublishedAssets{
-		Linux:   "wordcount-linux-amd64.tar.gz",
-		Darwin:  "wordcount-darwin-arm64.tar.gz",
-		Windows: "wordcount-windows-amd64.zip",
+// normalizeYAML drops comment lines and blanks so a doc that reproduces the
+// generated file "with comments elided" can still be compared to it.
+func normalizeYAML(s string) string {
+	var kept []string
+	for _, line := range strings.Split(s, "\n") {
+		t := strings.TrimSpace(line)
+		if t == "" || strings.HasPrefix(t, "#") {
+			continue
+		}
+		kept = append(kept, strings.TrimRight(line, " \t"))
+	}
+	return strings.Join(kept, "\n")
+}
+
+// TestDocsConfigurationMatchesGenerator is the drift check its title claims:
+// docs/CONFIGURATION.md reproduces the generated post-release files, so the
+// page must contain the generator's actual YAML once comments are removed.
+func TestDocsConfigurationMatchesGenerator(t *testing.T) {
+	cfg, wf, err := GeneratePublished("mytool", PublishedAssets{
+		Linux:   "mytool-linux-amd64.tar.gz",
+		Darwin:  "mytool-darwin-arm64.tar.gz",
+		Windows: "mytool-windows-amd64.zip",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -270,12 +308,50 @@ func TestPublishedConfigAndWorkflowMatchTrialFiles(t *testing.T) {
 			t.Errorf("unsubstituted format verb leaked into output:\n%s", s)
 		}
 	}
-	// sanity: writing both files works on every platform (paths are relative)
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".shipsmoke.yml"), []byte(cfg), 0o644); err != nil {
-		t.Fatal(err)
+	raw, err := os.ReadFile(filepath.Join("..", "..", "docs", "CONFIGURATION.md"))
+	if err != nil {
+		t.Skipf("docs/CONFIGURATION.md not reachable from the test: %v", err)
 	}
-	if _, err := config.Load(filepath.Join(dir, ".shipsmoke.yml")); err != nil {
-		t.Errorf("published config fails to load from disk: %v", err)
+	doc := normalizeYAML(string(raw))
+	for name, want := range map[string]string{".shipsmoke.yml": cfg, "workflow": wf} {
+		if !strings.Contains(doc, normalizeYAML(want)) {
+			t.Errorf("docs/CONFIGURATION.md no longer matches the generated %s; regenerate the page\n--- generated ---\n%s", name, want)
+		}
+	}
+}
+
+// TestPublishedRejectsHostileAssetNames covers the boundary the generator writes
+// into two YAML files: a value with a newline could close the mapping and inject
+// keys into a workflow that runs with the caller's token.
+func TestPublishedRejectsHostileAssetNames(t *testing.T) {
+	bad := []string{
+		"mytool-linux.tar.gz\n    steps:\n      - run: echo pwned",
+		"*leading-alias.tar.gz",
+		"has space.tar.gz",
+		"hash#comment.tar.gz",
+		"quote\"name.tar.gz",
+		"../escape.tar.gz",
+		"back\\slash.tar.gz",
+		"tab\tname.tar.gz",
+		"", // empty means "use the placeholder", so it must stay acceptable
+	}
+	for _, s := range bad {
+		if s == "" {
+			if err := ValidateAsset(s); err != nil {
+				t.Errorf("empty asset should be allowed (becomes a placeholder), got %v", err)
+			}
+			continue
+		}
+		if err := ValidateAsset(s); err == nil {
+			t.Errorf("ValidateAsset(%q) = nil, want rejection", s)
+		}
+		if _, _, err := GeneratePublished("mytool", PublishedAssets{Linux: s}); err == nil {
+			t.Errorf("GeneratePublished accepted hostile asset %q", s)
+		}
+	}
+	for _, s := range []string{"mytool-linux-amd64.tar.gz", "tool_v1.2.3-x86_64.zip", "a.tgz", "tool-1.0.0darwin.tar.gz"} {
+		if err := ValidateAsset(s); err != nil {
+			t.Errorf("ValidateAsset(%q) = %v, want acceptance", s, err)
+		}
 	}
 }

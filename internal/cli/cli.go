@@ -86,10 +86,15 @@ func Run(args []string, stdout, stderr io.Writer, vi VersionInfo) int {
 
 // --- usage helpers ---
 
-// flagOutput is discarded: the flag package prints its own error text and
-// usage there, and shipsmoke renders both itself so the wording stays
-// consistent across subcommands and the two writers can be injected in tests.
-var flagOutput = io.Discard
+// The flag package writes its own error text and usage to this writer; shipsmoke
+// renders both itself so the wording stays consistent across subcommands and the
+// two writers can be injected in tests. io.Discard directly, not a package
+// variable: a shared mutable sink would let one test change another's output.
+func newFlagSet(name string) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	return fs
+}
 
 // renderUsage writes the generated help for one subcommand.
 func renderUsage(w io.Writer, name, description string, fs *flag.FlagSet, examples []string) {
@@ -144,8 +149,7 @@ var checkExamples = []string{
 }
 
 func newCheckFlagSet() (*flag.FlagSet, *checkOpts) {
-	fs := flag.NewFlagSet("check", flag.ContinueOnError)
-	fs.SetOutput(flagOutput)
+	fs := newFlagSet("check")
 	o := &checkOpts{}
 	fs.StringVar(&o.ConfigPath, "config", "", "path to .shipsmoke.yml (default: ./.shipsmoke.yml)")
 	fs.StringVar(&o.Artifact, "artifact", "", "verify only the artifact with this name")
@@ -263,8 +267,7 @@ func printQuiet(w io.Writer, rep *report.Report, useColor bool, red *report.Reda
 const validateDescription = "validate .shipsmoke.yml without running anything"
 
 func runValidate(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
-	fs.SetOutput(flagOutput)
+	fs := newFlagSet("validate")
 	cfgPath := fs.String("config", "", "path to .shipsmoke.yml (default: ./.shipsmoke.yml)")
 	if err := fs.Parse(args); err != nil {
 		return parseFailure("validate", err, stdout, stderr, func(w io.Writer) {
@@ -300,8 +303,7 @@ func runValidate(args []string, stdout, stderr io.Writer) int {
 const initDescription = "write .shipsmoke.yml, optionally with a GitHub Actions workflow"
 
 func runInit(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("init", flag.ContinueOnError)
-	fs.SetOutput(flagOutput)
+	fs := newFlagSet("init")
 	force := fs.Bool("force", false, "overwrite existing generated files")
 	ci := fs.Bool("ci", false, "generate a GitHub Actions workflow (.github/workflows/shipsmoke.yml) plus .shipsmoke.yml")
 	published := fs.Bool("published", false, "with --ci: generate the post-release gate (re-download the published asset and run it) instead of the pre-publish build gate")
@@ -329,6 +331,25 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	if *published && !*ci {
 		fmt.Fprintf(stderr, "shipsmoke init: --published only applies with --ci (it selects the post-release gate instead of the pre-publish build gate)"+"\n")
 		return engine.ExitUsage
+	}
+	if *published && *stackFlag != "" {
+		// Silently dropping --stack would let a user believe they generated a
+		// build gate while they generated a download gate.
+		fmt.Fprintf(stderr, "shipsmoke init: --published does not build anything, so --stack %q has no meaning here (drop --stack, or drop --published)"+"\n", *stackFlag)
+		return engine.ExitUsage
+	}
+	if !*published {
+		// Not fatal, but a silently ignored flag is how people end up with a
+		// config that verifies nothing.
+		for _, given := range []struct{ flag, value string }{
+			{"--asset-linux", *assetLinux},
+			{"--asset-darwin", *assetDarwin},
+			{"--asset-windows", *assetWindows},
+		} {
+			if given.value != "" {
+				fmt.Fprintf(stderr, "shipsmoke init: %s is only used with --published (ignored here)"+"\n", given.flag)
+			}
+		}
 	}
 	if !*ci {
 		path := config.DefaultConfigName

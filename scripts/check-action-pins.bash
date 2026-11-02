@@ -23,8 +23,13 @@ SHA_RE='@[0-9a-f]{40}$'
 if [ "$#" -gt 0 ]; then
   FILES=("$@")
 else
-  FILES=(action.yml)
+  FILES=(action.yml README.md README.zh-CN.md)
   while IFS= read -r f; do FILES+=("$f"); done < <(find .github/workflows -maxdepth 1 -name '*.yml' 2>/dev/null | sort)
+  # Documentation snippets are instructions: a reader pastes them verbatim, so a
+  # movable tag here becomes a movable tag in someone else's pipeline. Only lines
+  # that begin with "uses:" (or "- uses:") are inspected, which leaves prose
+  # about pinning alone.
+  while IFS= read -r f; do FILES+=("$f"); done < <(find docs -maxdepth 1 -name '*.md' 2>/dev/null | sort)
 fi
 
 EXISTING=()

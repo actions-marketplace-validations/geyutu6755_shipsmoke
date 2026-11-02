@@ -399,3 +399,138 @@ artifacts:
 		t.Errorf("all-skipped exit = %d, want 3; stdout=%q", code, out.String())
 	}
 }
+
+// --- init --ci --published: the post-release gate has to be real on disk ---
+
+func TestInitPublishedWritesBothFiles(t *testing.T) {
+	dir := t.TempDir()
+	chdir(t, dir)
+	var out, errOut bytes.Buffer
+	code := Run([]string{"init", "--ci", "--published", "--name", "mytool",
+		"--asset-linux", "mytool-linux.tar.gz",
+		"--asset-darwin", "mytool-macos.tar.gz",
+		"--asset-windows", "mytool-win.zip"}, &out, &errOut, VersionInfo{})
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, errOut.String())
+	}
+	cfgPath := filepath.Join(dir, ".shipsmoke.yml")
+	wfPath := filepath.Join(dir, ".github", "workflows", "shipsmoke-published.yml")
+	for _, p := range []string{cfgPath, wfPath} {
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("expected generated file %s: %v", p, err)
+		}
+	}
+	cfg, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"mytool-linux.tar.gz", "mytool-macos.tar.gz", "mytool-win.zip"} {
+		if !strings.Contains(string(cfg), want) {
+			t.Errorf("generated config missing asset %q:\n%s", want, cfg)
+		}
+	}
+	// The explanatory note in the generated config mentions the marker word by
+	// design, so the assertion belongs on the path lines.
+	for _, line := range strings.Split(string(cfg), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "path:") && strings.Contains(line, "SET-ME") {
+			t.Errorf("no placeholder path expected when all assets supplied: %s", line)
+		}
+	}
+	if strings.Contains(out.String(), "WARNING") {
+		t.Errorf("no placeholder warning expected, got %q", out.String())
+	}
+	// The two modes must not be confused in the message: this gate does not
+	// publish and does not block.
+	if !strings.Contains(out.String(), "does not block publishing") {
+		t.Errorf("output should state what this gate is not, got:\n%s", out.String())
+	}
+
+	// Re-running without --force must refuse rather than clobber.
+	errOut.Reset()
+	if code := Run([]string{"init", "--ci", "--published", "--name", "mytool"}, &out, &errOut, VersionInfo{}); code != 2 {
+		t.Errorf("second init exit = %d, want 2; stderr=%q", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "already exists") {
+		t.Errorf("expected refusal to overwrite, got %q", errOut.String())
+	}
+	// --force overwrites deliberately.
+	out.Reset()
+	errOut.Reset()
+	if code := Run([]string{"init", "--ci", "--published", "--force", "--name", "mytool"}, &out, &errOut, VersionInfo{}); code != 0 {
+		t.Fatalf("--force exit = %d, stderr = %q", code, errOut.String())
+	}
+	// With no asset flags the placeholders must be announced, not hidden.
+	if !strings.Contains(out.String(), "SET-ME") {
+		t.Errorf("expected a placeholder warning for asset-less generation, got:\n%s", out.String())
+	}
+	wf, err := os.ReadFile(wfPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(wf), "SET-ME") {
+		t.Error("workflow matrix should carry the placeholder the guard refuses")
+	}
+}
+
+func TestInitPublishedFlagCombinationsRejected(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "published without ci",
+			args: []string{"init", "--published", "--name", "mytool"},
+			want: "--published only applies with --ci",
+		},
+		{
+			name: "published with stack is refused, not silently ignored",
+			args: []string{"init", "--ci", "--published", "--stack", "python", "--name", "mytool"},
+			want: "has no meaning here",
+		},
+		{
+			name: "ci without stack still refused",
+			args: []string{"init", "--ci", "--name", "mytool"},
+			want: "--stack is required",
+		},
+		{
+			name: "invalid name",
+			args: []string{"init", "--ci", "--published", "--name", "bad name"},
+			want: "contains",
+		},
+	}
+	for _, tc := range cases {
+		dir := t.TempDir()
+		chdir(t, dir)
+		var out, errOut bytes.Buffer
+		if code := Run(tc.args, &out, &errOut, VersionInfo{}); code != 2 {
+			t.Errorf("%s: exit = %d, want 2; stderr=%q", tc.name, code, errOut.String())
+		}
+		if !strings.Contains(errOut.String(), tc.want) {
+			t.Errorf("%s: stderr = %q, want substring %q", tc.name, errOut.String(), tc.want)
+		}
+		// Nothing must be written when the flags are rejected.
+		if _, err := os.Stat(filepath.Join(dir, ".shipsmoke.yml")); err == nil {
+			t.Errorf("%s: rejected invocation still wrote a config", tc.name)
+		}
+	}
+}
+
+func TestAssetFlagsWithoutPublishedWarnButStillWork(t *testing.T) {
+	dir := t.TempDir()
+	chdir(t, dir)
+	var out, errOut bytes.Buffer
+	// The flags are harmless without --published, but ignoring them silently
+	// would leave the user thinking a post-release gate was generated.
+	code := Run([]string{"init", "--ci", "--stack", "go", "--name", "mytool",
+		"--asset-windows", "mytool.zip"}, &out, &errOut, VersionInfo{})
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "--asset-windows is only used with --published") {
+		t.Errorf("expected a warning about the ignored flag, got %q", errOut.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".shipsmoke.yml")); err != nil {
+		t.Error("the pre-publish gate should still have been generated")
+	}
+}
