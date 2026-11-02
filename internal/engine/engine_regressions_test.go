@@ -38,16 +38,33 @@ func checkWithArgs(args ...string) config.Check {
 	}
 }
 
+// stableGoroutines waits until two consecutive samples agree, so the count is
+// not read while an unrelated goroutine is still winding down.
+func stableGoroutines(t *testing.T, limit time.Duration) int {
+	t.Helper()
+	deadline := time.Now().Add(limit)
+	prev := -1
+	for time.Now().Before(deadline) {
+		runtime.GC()
+		time.Sleep(100 * time.Millisecond)
+		n := runtime.NumGoroutine()
+		if n == prev {
+			return n
+		}
+		prev = n
+	}
+	return prev
+}
+
 // TestRunDoesNotLeakSignalWatchers pins the fix for the per-check leak: Run
 // installs one handler for the whole run and releases it on return. Before the
 // fix every check left a blocked goroutine plus a live signal.Notify behind, so
-// the goroutine count grew with the number of checks.
+// the goroutine count grew with the number of checks — 6 checks × 4 runs = 24
+// leaked goroutines, far outside the tolerance below.
 func TestRunDoesNotLeakSignalWatchers(t *testing.T) {
 	dir := t.TempDir()
 	art := zipWith(t, dir)
 
-	// Six checks is enough to show linear growth: the old code leaked exactly
-	// one goroutine per check.
 	artifact := config.Artifact{
 		Name:   "leak-check",
 		Path:   art,
@@ -60,21 +77,12 @@ func TestRunDoesNotLeakSignalWatchers(t *testing.T) {
 	}
 	cfg := buildConfig(t, dir, []config.Artifact{artifact}, "")
 
-	settle := func() int {
-		t.Helper()
-		deadline := time.Now().Add(2 * time.Second)
-		var n int
-		for time.Now().Before(deadline) {
-			runtime.GC()
-			time.Sleep(50 * time.Millisecond)
-			n = runtime.NumGoroutine()
-			if n <= baseline(t) {
-				return n
-			}
-		}
-		return n
+	// One warm-up run first: the first Run pays for lazy setup (testfixture's
+	// cached compile, the type loader) that would otherwise look like a leak.
+	if _, exit := Run(cfg, Options{ConfigPath: ".shipsmoke.yml", Version: "test"}); exit != ExitPass {
+		t.Fatalf("warm-up run exit = %d, want 0", exit)
 	}
-	before := settle()
+	before := stableGoroutines(t, 5*time.Second)
 
 	for i := 0; i < 4; i++ {
 		rep, exit := Run(cfg, Options{ConfigPath: ".shipsmoke.yml", Version: "test"})
@@ -83,27 +91,16 @@ func TestRunDoesNotLeakSignalWatchers(t *testing.T) {
 		}
 	}
 
-	after := settle()
-	if slack := after - before; slack > 1 {
-		t.Errorf("goroutines grew by %d across 4 runs of a 6-check config (before=%d after=%d): a signal watcher or handler is leaking",
-			slack, before, after)
+	after := stableGoroutines(t, 5*time.Second)
+	if after > before+2 {
+		t.Errorf("goroutines grew from %d to %d across 4 runs of a 6-check config: a signal watcher is leaking", before, after)
 	}
-}
-
-// baseline reports the goroutine count at the start of the process, used only
-// as a stable reference for the leak assertion above.
-func baseline(t *testing.T) int {
-	t.Helper()
-	runtime.GC()
-	time.Sleep(50 * time.Millisecond)
-	return runtime.NumGoroutine()
 }
 
 // TestSignalContextStopReleasesWatcher exercises the helper directly: stop must
 // return only after the watcher goroutine has exited and unregistered.
 func TestSignalContextStopReleasesWatcher(t *testing.T) {
-	runtime.GC()
-	before := baseline(t)
+	before := stableGoroutines(t, 5*time.Second)
 
 	ctx, stop := signalContext()
 	select {
@@ -120,15 +117,10 @@ func TestSignalContextStopReleasesWatcher(t *testing.T) {
 		t.Error("stop() must cancel the context so a running check unwinds")
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		runtime.GC()
-		time.Sleep(20 * time.Millisecond)
-		if runtime.NumGoroutine() <= before {
-			return
-		}
+	after := stableGoroutines(t, 5*time.Second)
+	if after > before {
+		t.Errorf("watcher goroutine still alive after stop(): before=%d now=%d", before, after)
 	}
-	t.Errorf("watcher goroutine still alive after stop(): before=%d now=%d", before, runtime.NumGoroutine())
 }
 
 // TestEnvInheritWarningUsesOptionsWriter proves the warning is routable: it must

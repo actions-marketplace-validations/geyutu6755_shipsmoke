@@ -108,7 +108,9 @@ curl -fsSL --retry 3 --retry-delay 2 -o "$DEST/checksums.txt" "$BASE_URL/$TAG/ch
 # "shipsmoke_linux_amd64XtarXgz". The digest is taken from the line whose second
 # field is byte-for-byte the asset we are about to execute.
 EXPECTED=""
-while read -r hash name; do
+while read -r hash name || [ -n "$hash" ]; do
+  # The "|| [ -n ... ]" keeps a final line that has no trailing newline; without
+  # it the last manifest entry would be skipped and a listed asset refused.
   name=${name%$'\r'}    # tolerate a CRLF manifest
   case "$hash" in
     "" | *[!0-9a-fA-F]*) continue ;;   # skip anything that is not a bare digest
@@ -124,6 +126,10 @@ done < "$DEST/checksums.txt"
 if [ -z "$EXPECTED" ]; then
   die "$ASSET is not listed in checksums.txt; refusing to execute an unverified file"
 fi
+# Digests are hex; a manifest written with uppercase letters would otherwise
+# mismatch the lowercase output of sha256sum and refuse a good file. tr, not
+# ${var,,}, because macOS runners still ship bash 3.2.
+EXPECTED="$(printf '%s' "$EXPECTED" | tr 'A-F' 'a-f')"
 case "$EXPECTED" in
   [0-9a-fA-F]*) ;;
   *) die "malformed checksum entry for $ASSET" ;;
