@@ -185,3 +185,33 @@ func TestReproduceCommand(t *testing.T) {
 		t.Errorf("args not quoted: %q", got)
 	}
 }
+
+// A nil redactor means "no known secrets", not "abort the report": v1.0.3
+// crashed here when --quiet passed nil through Terminal.
+func TestRedactorNilIsTolerated(t *testing.T) {
+	var r *Redactor
+	if got := r.Apply("hello"); got != "hello" {
+		t.Errorf("nil Apply = %q, want the input unchanged", got)
+	}
+	rep := &Report{
+		ShipSmokeVersion: "test",
+		HostOS:           "linux", HostArch: "amd64",
+		ConfigPath: ".shipsmoke.yml",
+		Artifacts: []ArtifactResult{{
+			Name: "a", Decision: "ran",
+			Checks: []CheckResult{{Name: "c1", Status: StatusPass}},
+		}},
+	}
+	rep.ComputeSummary()
+	var buf bytes.Buffer
+	rep.Terminal(&buf, false, nil) // must not panic
+	if !strings.Contains(buf.String(), "PASS") {
+		t.Errorf("rendering with a nil redactor produced %q", buf.String())
+	}
+
+	live := NewRedactor()
+	live.Add("supersecretvalue")
+	if got := live.Apply("token=supersecretvalue"); strings.Contains(got, "supersecretvalue") {
+		t.Errorf("a live redactor must mask added secrets, got %q", got)
+	}
+}

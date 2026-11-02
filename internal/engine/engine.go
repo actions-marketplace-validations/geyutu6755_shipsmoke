@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -19,13 +20,22 @@ import (
 	"github.com/geyutu6755/shipsmoke/internal/runner"
 )
 
-// withSignalContext returns a context cancelled on Ctrl+C / SIGTERM so a
-// running check is killed and reports still render.
-func withSignalContext() context.Context {
+// signalContext returns a context cancelled on Ctrl+C so the running check is
+// killed and the report still renders.
+//
+// It is installed ONCE per run, not once per check: a handler registered per
+// check leaks a goroutine and leaves signal.Notify active for every check that
+// finished without being interrupted, and it would make Ctrl+C abort only the
+// check in flight while the remaining checks carried on. The returned stop
+// function cancels, waits for the watcher and unregisters the handler, so
+// callers that defer it leave no trace in the process.
+func signalContext() (ctx context.Context, stop func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
+	watcherDone := make(chan struct{})
 	go func() {
+		defer close(watcherDone)
 		defer signal.Stop(ch)
 		select {
 		case <-ch:
@@ -33,7 +43,10 @@ func withSignalContext() context.Context {
 		case <-ctx.Done():
 		}
 	}()
-	return ctx
+	return ctx, func() {
+		cancel()
+		<-watcherDone
+	}
 }
 
 // Options controls one verification run.
@@ -48,6 +61,18 @@ type Options struct {
 	Env []string
 	// GITHUB_STEP_SUMMARY path, when non-empty, receives the markdown summary.
 	StepSummaryPath string
+	// Stderr receives human warnings (nil means os.Stderr) so the messages a
+	// run emits are routed through the caller and can be asserted in tests.
+	Stderr io.Writer
+}
+
+// warnf writes a human-facing warning to the configured stderr.
+func (o Options) warnf(format string, args ...any) {
+	w := o.Stderr
+	if w == nil {
+		w = os.Stderr
+	}
+	fmt.Fprintf(w, format, args...)
 }
 
 // Exit codes (documented in README and docs/SYSTEM_DESIGN.md).
@@ -70,12 +95,14 @@ func Run(cfg *config.Config, opts Options) (*report.Report, int) {
 		HostArch:         runtime.GOARCH,
 	}
 	start := time.Now()
+	ctx, stopSignals := signalContext()
+	defer stopSignals()
 
 	for _, art := range cfg.Artifacts {
 		if opts.ArtifactFilter != "" && art.Name != opts.ArtifactFilter {
 			continue
 		}
-		rep.Artifacts = append(rep.Artifacts, verifyArtifact(art, cfg, opts, red))
+		rep.Artifacts = append(rep.Artifacts, verifyArtifact(ctx, art, cfg, opts, red))
 	}
 	rep.DurationMS = time.Since(start).Milliseconds()
 	rep.ComputeSummary()
@@ -94,7 +121,7 @@ func Run(cfg *config.Config, opts Options) (*report.Report, int) {
 	return rep, exit
 }
 
-func verifyArtifact(art config.Artifact, cfg *config.Config, opts Options, red *report.Redactor) report.ArtifactResult {
+func verifyArtifact(ctx context.Context, art config.Artifact, cfg *config.Config, opts Options, red *report.Redactor) report.ArtifactResult {
 	res := report.ArtifactResult{
 		Name:   art.Name,
 		Path:   art.Path,
@@ -227,10 +254,10 @@ func verifyArtifact(art config.Artifact, cfg *config.Config, opts Options, red *
 
 	// 8. Run every check.
 	if art.Env == "inherit" {
-		fmt.Fprintln(os.Stderr, "warning: artifact \""+art.Name+"\" uses env: inherit; the child process will see the parent environment (secret-shaped variables are still removed)")
+		opts.warnf("warning: artifact %q uses env: inherit; the child process will see the parent environment (secret-shaped variables are still removed)\n", art.Name)
 	}
 	for i, chk := range art.Checks {
-		res.Checks = append(res.Checks, runCheck(art, chk, i, entryPath, extractDir, opts, red))
+		res.Checks = append(res.Checks, runCheck(ctx, art, chk, i, entryPath, extractDir, opts, red))
 	}
 	res.Decision = "ran"
 	return res
@@ -289,9 +316,9 @@ func limitsFrom(cfg *config.Config) artifact.Limits {
 	}
 }
 
-func runCheck(art config.Artifact, chk config.Check, idx int, entryPath, workDir string, opts Options, red *report.Redactor) report.CheckResult {
+func runCheck(ctx context.Context, art config.Artifact, chk config.Check, idx int, entryPath, workDir string, opts Options, red *report.Redactor) report.CheckResult {
 	name := fmt.Sprintf("check #%d: %s %s", idx+1, filepath.Base(entryPath), strings.Join(chk.Args, " "))
-	out := runner.Run(withSignalContext(), runner.Spec{
+	out := runner.Run(ctx, runner.Spec{
 		BinaryPath: entryPath,
 		Args:       chk.Args,
 		Timeout:    chk.Timeout.Duration,
