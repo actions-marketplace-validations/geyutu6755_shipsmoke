@@ -161,28 +161,50 @@ New v1.0.2 evidence (all real CI):
 
 ## 6e. v1.0.4 reliability round — branch evidence (2026-11-02, not released)
 
-Branch `fix/v1.0.4-reliability`, head `f811c10`, opened as
-[draft PR #1](https://github.com/geyutu6755/shipsmoke/pull/1). **No tag and no
-Release were created for this work.**
+Branch `fix/v1.0.4-reliability`, opened as
+[draft PR #1](https://github.com/geyutu6755/shipsmoke/pull/1). The verified code
+head is `563e8e9`; a documentation-only commit follows it, and its CI result is
+the link posted on the PR.
 
-Real GitHub-hosted runs on that commit. The branch head moved once during this
-round (to add the race step), so both heads are recorded: CI run 25 on
-`f811c10` and CI run 26 on `8c4436e`, both success.
+Real GitHub-hosted runs. The branch moved during the round, so the runs are
+listed per commit rather than collapsed into one claim; the authoritative
+gate is the run on the final head, whose link is posted on PR #1.
 
-| workflow | run on `8c4436e` | result |
-|---|---|---|
-| CI (test ×3 OS incl. race/fuzz/govulncheck on Linux, self-verify ×3 OS, pinning) | [26](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635793) | success |
-| action-test (fetch-script suite + `uses: ./` e2e ×3 OS + injection regression) | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635825) | success |
-| example-go-cli | [6](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635805) | success |
-| example-rust-cli | [6](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635678) | success |
-| example-c-cli | [6](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635763) | success |
+| commit | what changed | CI | action-test | examples go/rust/c |
+|---|---|---|---|---|
+| `f811c10` | fixes + docs | [25](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865575) | [4](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865584) | [41385865589](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865589) / [41385865709](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865709) / [41385865746](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865746) |
+| `8c4436e` | + `go test -race` on Linux | [26](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635793) | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635825) | [41386635805](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635805) / [41386635678](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635678) / [41386635763](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635763) |
+| `563e8e9` | review-round security + test fixes | [28](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626401) | [7](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626393) | [41390626442](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626442) / [41390626400](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626400) / [41390626390](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626390) |
 
-Earlier head `f811c10` had the same five workflows green:
-[CI 25](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865575),
-[action-test 4](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865584),
-[go](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865589) /
-[rust](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865709) /
-[c](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865746).
+All of the above completed successfully, including the new
+`Dependency pinning` job on every head.
+
+Step-level results on `563e8e9` (read from the Actions API and the downloaded
+job log, not inferred from a green tick):
+
+| job | gofmt | vet | tests | race | fuzz | govulncheck |
+|---|---|---|---|---|---|---|
+| Test (ubuntu-24.04) | success | success | success | **success** | success | success |
+| Test (macos-15) | Linux-only, skipped | success | success | skipped | skipped | skipped |
+| Test (windows-2025) | skipped | success | success | skipped | skipped | skipped |
+
+`Self-verify artifact`, `Composite action e2e via uses: ./` and
+`Fetch script security tests` each ran on ubuntu-24.04, macos-15 and
+windows-2025, all success.
+
+From the ubuntu log on that commit:
+
+```
+=== RUN   TestInterruptCancelsRemainingChecks
+--- PASS: TestInterruptCancelsRemainingChecks (0.67s)
+    interrupted run: exit=1 elapsed=199.150803ms checks=3
+##[group]Run go test -race -count=1 ./...
+```
+
+199 ms elapsed against three configured 30-second sleeps is the discriminator:
+the later checks did not run. Under the old per-check handler two of them would
+have consumed ~60 s. The log contains no `--- SKIP` and no `--- FAIL` line, and
+no `DATA RACE` report appears anywhere in it.
 
 `Dependency pinning` is a new job and it is green here; that is the first CI run
 in which the claim "every third-party Action ref is SHA-pinned" is machine
@@ -221,10 +243,10 @@ darwin/linux/arm64 release artifacts, `windows/arm64` execution (still
 this environment). One disclosure worth stating plainly: `-race` had never run
 for any release — it needs cgo, which is unavailable on a machine without a C
 compiler, and no CI job invoked it either. This branch adds
-`go test -race ./...` to the Linux job; its first execution is recorded in
-CI run 26 (`##[group]Run go test -race -count=1 ./...`, job conclusion success,
-no `DATA RACE` report anywhere in the log, no skipped or failed tests). See
-docs/LIMITATIONS.md and docs/DEVELOPMENT_STATUS.md.
+`go test -race ./...` to the Linux job; its first execution is recorded in the
+step table above (`##[group]Run go test -race -count=1 ./...`, job conclusion
+success, no `DATA RACE` report anywhere in the log, no skipped or failed tests).
+See docs/LIMITATIONS.md and docs/DEVELOPMENT_STATUS.md.
 
 ## 7. Final acceptance conclusion
 
