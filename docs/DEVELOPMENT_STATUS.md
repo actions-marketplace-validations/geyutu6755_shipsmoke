@@ -67,6 +67,12 @@ of claim this project should not make.
 | 6 | `env: inherit` warning bypassed injected writers | low | wrote to raw `os.Stderr` |
 | 7 | fetch script matched the manifest by regex with unescaped dots | low (hardening) | pre-fix script extracted a lookalike-named asset, exit 0 |
 | 8 | dead `fetched-ci.yml` at repo root | cleanup | built a `teapot` that does not exist here; never in `.github/workflows/` |
+| 9 | generated workflow accepted unvalidated `--asset-*` values (YAML key injection / corruption) | **high, introduced and fixed on this branch** | found by adversarial review; now grammar-checked, quoted, and covered by `TestPublishedRejectsHostileAssetNames` |
+| 10 | generated tag check was a `case` pattern, which is not a validator | **high, same** | `v[0-9]*` accepts newlines and `../`; replaced with an anchored single-line regex, `%q`-quoted error output |
+| 11 | template contained a bare `printf '%s'`, which Go's `Sprintf` consumed as a positional verb | medium, same | generated output had an action ref pasted into a shell line; escaped, and the doc-drift test now fails on it |
+| 12 | fetch script skipped a manifest's last line when it had no trailing newline; uppercase digests refused good files | medium / low | loop keeps the final entry; digest normalised with `tr` (bash 3.2 compatible) |
+| 13 | three doc snippets still taught `actions/checkout@v4` | medium | corrected, and the pinning gate now scans `README*` and `docs/*.md` (verified it fails on reintroduction) |
+| 14 | two of this branch's own tests were weak (self-referential goroutine baseline; interrupt test asserting only "not success") | test quality | both rewritten; the interrupt test now waits for evidence the child is running and bounds elapsed time |
 
 ### Still open after this round
 

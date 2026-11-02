@@ -102,6 +102,79 @@ adheres to [Semantic Versioning](https://semver.org/).
   unit tests covered it then. The generated post-release template is exercised by
   CI on this branch, and the distinction is recorded in the status doc.
 
+### Fixed in review of this branch's own changes
+
+The first cut of `init --ci --published` was reviewed adversarially before
+committing, and the review found three defects in code written on this branch.
+Recording them here rather than pretending the first version was right:
+
+- **Generated workflow could be corrupted by its own input.** `--asset-*` values
+  were written into `.shipsmoke.yml` and the workflow unquoted and unvalidated.
+  A value containing a newline closes the mapping and injects keys into a
+  workflow that then runs with the caller's token; benign values like
+  `*name.tar.gz`, a space or a `#` corrupt the emitted document outright. Asset
+  names are now grammar-checked (`ValidateAsset`, rejecting spaces, slashes,
+  quotes, newlines, `..`) and emitted as quoted scalars, and
+  `TestPublishedRejectsHostileAssetNames` covers the hostile cases.
+- **The tag "grammar check" was not a validator.** A POSIX `case` pattern
+  `v[0-9]*` means *digit, then anything*, so `v1.0../../x`, spaces and newlines
+  all passed, and the value was then appended to `GITHUB_OUTPUT` and echoed into
+  log lines. Replaced by an anchored `grep -Eq` on a single line, with the
+  rejected value printed through `printf %q` so control characters are visible
+  instead of executed as log markup.
+- **A format verb swallowed an argument.** The template contained shell text
+  `printf '%s' "$TAG"`; inside Go's `Sprintf` that is a positional verb, so the
+  generated workflow came out with an action ref pasted in place of the shell's
+  `%s`. It is escaped now, and the new documentation test would have caught it
+  either way — which is the reason it exists.
+
+### Added (review round)
+
+- `TestDocsConfigurationMatchesGenerator` compares `docs/CONFIGURATION.md`
+  against the generator's bytes (comments ignored) on every test run, so the
+  page cannot drift from the emitter. The doc blocks are now the generator's
+  actual output, comments included, replacing the earlier "with comments
+  elided" reproduction that had already diverged.
+- Pinning gate now also scans `README.md`, `README.zh-CN.md` and `docs/*.md` for
+  `uses:` lines: a snippet in documentation is an instruction someone pastes.
+  Three snippets still showing `actions/checkout@v4` / `setup-go@v5` were
+  corrected; verified the gate fails when such a ref is reintroduced.
+- `init --ci --published --stack …` is now refused instead of silently dropping
+  `--stack`, and passing `--asset-*` without `--published` warns rather than
+  ignoring the flag.
+
+### Fixed (reliability details found in the same review)
+
+- `scripts/fetch-shipsmoke.sh`: a manifest whose last line has no trailing
+  newline was skipped entirely, so the final asset would be reported as missing.
+  Also, an uppercase digest in a valid manifest would have mismatched the
+  lowercase output of `sha256sum` and refused a good file; digests are now
+  normalised (`tr`, not `${var,,}`, because macOS runners still ship bash 3.2).
+- The goroutine-leak test sampled `runtime.NumGoroutine` through a helper that
+  called its own baseline inside its poll loop, so it returned on the first
+  sample and never actually settled. Baseline is measured once, a warm-up run
+  absorbs lazy init, and samples must agree twice before being compared.
+- The SIGINT test asserted only "not success" and waited on a fixed sleep that
+  could fire before the child process existed. It now waits for evidence the
+  fixture is running, asserts that no check reported PASS, and bounds elapsed
+  time — which is what distinguishes the fixed behaviour (seconds) from the old
+  one (the remaining 30s checks still running).
+
+### Changed (deliberate behaviour differences)
+
+Two user-visible changes are intended, not accidents, and callers should know:
+
+- `shipsmoke <command> --help` now writes to **stdout and exits 0** instead of
+  exiting 2. Anything that treated the broken `--help` exit as an error will now
+  see success.
+- Ctrl+C aborts the **whole run**, not just the check that was in flight. A run
+  interrupted mid-way reports failure rather than a partial pass, so CI cannot
+  read an interrupted verification as a green gate.
+
+`engine.Options` gained a `Stderr` field (additive; unset means `os.Stderr`), and
+the removed `usageError` helper was unexported, so nothing outside this module
+was affected.
+
 ## [1.0.3] - 2026-11-01
 
 ### Fixed

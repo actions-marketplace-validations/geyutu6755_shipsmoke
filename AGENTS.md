@@ -121,6 +121,21 @@ open, and do not re-introduce them:
   outside `.github/workflows/` so never executed, building a `teapot` that does
   not exist here.
 
+- **Review-round fixes on this branch (my own first cut was wrong three ways):**
+  generated workflows accepted unvalidated `--asset-*` values (newline → YAML key
+  injection into a job that runs with the caller's token), the tag check used a
+  POSIX `case` pattern which is **not** a validator (`v[0-9]*` accepts newlines
+  and `../`), and the template contained a bare `printf '%s'` that Go's
+  `Sprintf` consumed as a positional verb. All three are fixed and tested.
+  Lesson for future sessions: anything that interpolates user input into
+  generated YAML must be grammar-checked *and* quoted, and any template with
+  indexed `%[n]s` verbs needs `%%` for literal percent text.
+
+- **Docs drift is now machine-checked:**
+  `TestDocsConfigurationMatchesGenerator` compares `docs/CONFIGURATION.md`
+  against the generator's bytes. When it first ran it immediately failed, because
+  the hand-copied snippet had already diverged — which is why it exists.
+
 Still open, by construction rather than oversight:
 
 - `windows/arm64` ships unexecuted (`build-only`); the job summary says so.
