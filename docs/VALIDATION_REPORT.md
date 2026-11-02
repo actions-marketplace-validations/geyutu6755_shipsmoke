@@ -165,15 +165,24 @@ Branch `fix/v1.0.4-reliability`, head `f811c10`, opened as
 [draft PR #1](https://github.com/geyutu6755/shipsmoke/pull/1). **No tag and no
 Release were created for this work.**
 
-Real GitHub-hosted runs on that commit:
+Real GitHub-hosted runs on that commit. The branch head moved once during this
+round (to add the race step), so both heads are recorded: CI run 25 on
+`f811c10` and CI run 26 on `8c4436e`, both success.
 
-| workflow | run | result |
+| workflow | run on `8c4436e` | result |
 |---|---|---|
-| CI (test ×3 OS, self-verify ×3 OS, fuzz + govulncheck + pinning on Linux) | [25](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865575) | success |
-| action-test (fetch-script suite + `uses: ./` e2e ×3 OS + injection regression) | [4](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865584) | success |
-| example-go-cli | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865589) | success |
-| example-rust-cli | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865709) | success |
-| example-c-cli | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865746) | success |
+| CI (test ×3 OS incl. race/fuzz/govulncheck on Linux, self-verify ×3 OS, pinning) | [26](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635793) | success |
+| action-test (fetch-script suite + `uses: ./` e2e ×3 OS + injection regression) | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635825) | success |
+| example-go-cli | [6](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635805) | success |
+| example-rust-cli | [6](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635678) | success |
+| example-c-cli | [6](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635763) | success |
+
+Earlier head `f811c10` had the same five workflows green:
+[CI 25](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865575),
+[action-test 4](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865584),
+[go](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865589) /
+[rust](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865709) /
+[c](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865746).
 
 `Dependency pinning` is a new job and it is green here; that is the first CI run
 in which the claim "every third-party Action ref is SHA-pinned" is machine
@@ -189,7 +198,7 @@ claimed): the new regression tests were run against a detached worktree of
 | `<cmd> --help` | `check/validate/init` each exit 2 with `flag: help requested`, no usage | usage on stdout, exit 0; unknown flag and bad bool value still exit 2 with usage on stderr |
 | `env: inherit` warning | not observable: injected stderr stayed empty | warning captured through `Options.Stderr` |
 | lookalike `checksums.txt` name | pre-fix fetch script matched it, **extracted it, exit 0** (2 test failures) | refused, exit 2, no extraction; fetch suite 30/30 locally and green on 3 OSes |
-| per-check signal handler | leaked one goroutine + notifier per check | goroutine count stable across 4 runs of a 6-check config; Unix SIGINT aborts remaining checks |
+| per-check signal handler | leaked one goroutine + notifier per check | goroutine count stable across 4 runs of a 6-check config; on CI run 26 the Unix-only `TestInterruptCancelsRemainingChecks` logs `--- PASS (0.65s)` — a real SIGINT aborted the remaining checks, and it was not skipped (the log contains no `--- SKIP` line at all) |
 
 Post-release gate against a real third-party release (Tier 0, self-performed):
 `init --ci --published --name termide` output plus termide 0.48.0's actual
@@ -211,9 +220,10 @@ darwin/linux/arm64 release artifacts, `windows/arm64` execution (still
 `build-only`), any third-party adoption, and `gh attestation verify` (no `gh` in
 this environment). One disclosure worth stating plainly: `-race` had never run
 for any release — it needs cgo, which is unavailable on a machine without a C
-compiler, and no CI job invoked it either. This round adds
-`go test -race ./...` to the Linux job, so race detection begins with this
-branch rather than having been true before it. See
+compiler, and no CI job invoked it either. This branch adds
+`go test -race ./...` to the Linux job; its first execution is recorded in
+CI run 26 (`##[group]Run go test -race -count=1 ./...`, job conclusion success,
+no `DATA RACE` report anywhere in the log, no skipped or failed tests). See
 docs/LIMITATIONS.md and docs/DEVELOPMENT_STATUS.md.
 
 ## 7. Final acceptance conclusion
