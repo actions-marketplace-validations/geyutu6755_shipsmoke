@@ -4,6 +4,100 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] — v1.0.4 candidate (branch `fix/v1.0.4-reliability`, not released)
+
+### Fixed
+
+- **`shipsmoke check --quiet` no longer crashes.** It panicked with a nil-pointer
+  dereference in the released v1.0.3 binary: the quiet path rendered the full
+  report into `io.Discard` with a `nil` redactor, and `Redactor.Apply`
+  dereferenced it. The useless render is gone, and `Apply` now treats a nil
+  receiver as "nothing to redact" so the class cannot return. Reproduced against
+  the official v1.0.3 asset and covered by regression tests for the PASS, FAIL,
+  ERROR, SKIP, NO-CHECKS, JSON-report and exit-code paths.
+- **`shipsmoke <command> --help` prints usage.** For `check`, `validate` and
+  `init` it previously printed `shipsmoke check: flag: help requested`, because
+  the flag set wrote its usage to `io.Discard` while `flag.ErrHelp` was reported
+  as an error. Help now goes to stdout and exits 0; genuinely invalid flags still
+  print the error plus usage to stderr and exit 2 — the two cases are no longer
+  conflated. The top-level help and README both told users to run this command.
+- **Signal handling is per-run, not per-check.** `withSignalContext()` registered
+  `signal.Notify` and a goroutine for every single check and never released them
+  on normal completion, leaking one goroutine plus one live notifier per check,
+  and making Ctrl+C abort only the check in flight. One handler is now installed
+  for the whole run and explicitly torn down; a Unix-only test delivers a real
+  SIGINT and asserts the remaining checks do not carry on.
+- **The `env: inherit` warning is routable.** It wrote to the raw process
+  `os.Stderr`, escaping any caller that injected its own writers, so it could not
+  be asserted in tests. It now honours `Options.Stderr` (falling back to
+  `os.Stderr`).
+- **Checksums-manifest lookup in the action's fetch step is literal.** The asset
+  name was interpolated into a `grep -E` pattern, where its dots match any byte:
+  a manifest line for `shipsmoke_linux_amd64XtarXgz` satisfied the lookup for
+  `shipsmoke_linux_amd64.tar.gz`. The digest is now taken from the line whose
+  name field equals the asset byte-for-byte. New test proves the pre-fix script
+  accepted and extracted the lookalike (exit 0) and the fixed one refuses (exit 2).
+
+### Security
+
+- `action.yml` — the composite action that **outside callers execute** — was the
+  one file in this repository still using a movable third-party ref
+  (`actions/upload-artifact@v4`). It is now pinned to the same commit SHA the
+  rest of the repo uses, and `scripts/check-action-pins.bash` runs in CI to fail
+  on any movable third-party ref, so this cannot regress silently. This closes a
+  hole in the v1.0.3 entry below, which claimed all third-party Actions were
+  pinned; literally that covered the workflows and missed the action itself.
+
+### Added
+
+- **`shipsmoke init --ci --published`** — a real, generated **post-release**
+  gate: one job per OS downloads the asset users actually get from the Release
+  and ShipSmoke runs it, triggered by `release: published` and also dispatchable
+  against any existing tag. Per-platform asset names come from
+  `--asset-linux/--asset-darwin/--asset-windows`; anything left unset becomes a
+  visible `SET-ME-` placeholder that the workflow **refuses to run** rather than
+  passing vacuously. This is a different question from the pre-publish gate —
+  one blocks a bad release, the other detects a released one — and it is the
+  only shape usable by a project that already has its own release pipeline.
+- `docs/CONFIGURATION.md` gains a full command-line reference (previously no CLI
+  flags were documented anywhere) and the post-release section is replaced with
+  the generator's actual output instead of an unrunnable sketch.
+- New regression tests across `cli`, `engine`, `cigen` and `report`, including a
+  check that no generated workflow interpolates `${{ }}` inside a `run:` block
+  or uses a heredoc — the two patterns behind the v1.0.1 fake-green incident.
+
+### Removed
+
+- `fetched-ci.yml` at the repository root: a leftover copy of the integration
+  harness's workflow from the v1.0.2 heredoc debugging. Unreferenced, not in
+  `.github/workflows/` so never executed, and it built a `teapot` target that
+  does not exist in this repository.
+
+### Corrected (documentation honesty)
+
+- README's headline sample was labelled "real output from the self-verification
+  CI run" while showing `shipsmoke v1.0.0` and artifacts that run does not
+  produce. Replaced with captured output of the released v1.0.3 binary and an
+  accurate caption; `README.zh-CN.md` matched.
+- `shipsmoke-integration` described as "independent": it is a separate repository
+  owned by the same maintainer, i.e. Tier 2 under `docs/ADOPTION.md`, not
+  third-party adoption. Stated plainly in both READMEs, and a Tier 0 (local trial
+  on someone else's artifacts) is now defined and recorded.
+- Tier 2 "all green runs since v1.0.2" replaced with what the run list shows:
+  latest run green on all three OSes, earlier failures while the harness itself
+  was being fixed.
+- `docs/CANDIDATES.md` re-verified: the rows for jq (has `sha256sum.txt` plus
+  attestations) and gdu (~30 archives with `sha256sums.txt.asc`) were wrong, and
+  ripgrep's checksums are per-artifact files, not a manifest. The list is
+  retargeted from large projects to three small/medium ones with the gap read
+  from their own workflow files.
+- `docs/VALIDATION_REPORT.md` said 7 release assets; v1.0.3 publishes 9.
+- `docs/DEVELOPMENT_STATUS.md` said there were no known open issues while a
+  crash was shipped; it now lists the register.
+- The v1.0.3 claim that `init --ci` was "end-to-end verified" overstated: only
+  unit tests covered it then. The generated post-release template is exercised by
+  CI on this branch, and the distinction is recorded in the status doc.
+
 ## [1.0.3] - 2026-11-01
 
 ### Fixed

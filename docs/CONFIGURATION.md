@@ -97,6 +97,46 @@ values are passed through the secret redactor before writing.
   child environment in both modes, and their values (length ≥ 8) are masked
   in every report.
 
+## Command line
+
+Every flag below is what the binary actually parses; `shipsmoke <command> --help`
+prints the same list with descriptions, generated from the flag definitions
+themselves, so this table cannot silently fall behind.
+
+### `shipsmoke check` — the gate
+
+| flag | meaning |
+|---|---|
+| `--config PATH` | config file, default `./.shipsmoke.yml` |
+| `--artifact NAME` | run only this artifact (the CI matrix uses this to give each runner one job entry) |
+| `--report PATH` | JSON report path, overrides `report.json` from the config |
+| `--allow-empty` | exit 0 instead of 3 when nothing was executed |
+| `--no-color` | never emit ANSI colour (also honoured via `NO_COLOR` / `TERM=dumb`) |
+| `--quiet` | print only failing/errored/skipped artifacts and the summary line |
+
+### `shipsmoke validate` — schema check, executes nothing
+
+| flag | meaning |
+|---|---|
+| `--config PATH` | config file to parse and validate |
+
+### `shipsmoke init` — scaffolding
+
+| flag | meaning |
+|---|---|
+| `--force` | overwrite an existing `.shipsmoke.yml` / generated workflow |
+| `--ci` | additionally emit a GitHub Actions workflow |
+| `--stack go\|rust\|c` | with `--ci`: which build stack to generate (required for the pre-publish gate) |
+| `--name TOOL` | with `--ci`: your binary's name; defaults to the current directory name |
+| `--published` | with `--ci`: generate the **post-release** gate instead of the pre-publish one |
+| `--asset-linux NAME` | with `--published`: release asset name for linux/amd64 |
+| `--asset-darwin NAME` | with `--published`: release asset name for darwin/arm64 |
+| `--asset-windows NAME` | with `--published`: release asset name for windows/amd64 |
+
+`init --published` needs no `--stack`: it never builds, so it never needs to
+know how you build. Omitted `--asset-*` values become visible `SET-ME-…`
+placeholders and the generated workflow refuses to run them.
+
 ## GitHub Actions
 
 ### Verify after build, before publish
@@ -141,31 +181,199 @@ its target platform — see the README recipe.
 
 ### Post-release verification
 
-After publishing, re-download the actual release asset and verify it again
-(catches CDN truncation and packaging mistakes):
+Pre-publish and post-release answer different questions, and only the second
+one is available to a project that already has its own release pipeline:
+
+| mode | command | question answered |
+|---|---|---|
+| pre-publish | `shipsmoke init --ci --stack go\|rust\|c --name TOOL` | "is the artifact I am *about* to publish sound?" |
+| post-release | `shipsmoke init --ci --published --name TOOL --asset-…` | "is the artifact users *actually got* sound?" |
+
+Generate both files:
+
+```bash
+shipsmoke init --ci --published --name mytool \
+  --asset-linux  mytool-linux-amd64.tar.gz \
+  --asset-darwin mytool-darwin-arm64.tar.gz \
+  --asset-windows mytool-windows-amd64.zip
+```
+
+This writes `.shipsmoke.yml` and
+`.github/workflows/shipsmoke-published.yml`. Both are reproduced below — the
+workflow is shown with its explanatory comments elided, everything else is the
+generator's output. `TestPublishedWorkflowStructure` and
+`TestGeneratedWorkflowsNeverInterpolateInRunBlocks` keep this page and the
+emitter from drifting apart.
+
+`.shipsmoke.yml`:
 
 ```yaml
-verify-release:
-  needs: release
-  strategy:
-    matrix:
-      include:
-        - { os: ubuntu-24.04, asset: shipsmoke_linux_amd64.tar.gz }
-        - { os: macos-15,     asset: shipsmoke_darwin_arm64.tar.gz }
-        - { os: windows-2025, asset: shipsmoke_windows_amd64.zip }
-  runs-on: ${{ matrix.os }}
-  steps:
-    - uses: actions/checkout@v4
-    - run: |
-        URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ matrix.asset }}"
-        curl -fsSL -o artifact "$URL"
-        # verify the downloaded bytes (integrity)
-        sha256sum artifact
-    - uses: geyutu6755/shipsmoke@v1
-      with:
-        binary-path: ${{ runner.temp }}/shipsmoke # or build from the checkout
-    # then run shipsmoke check against the downloaded artifact
+version: 1
+
+report:
+  json: dist/shipsmoke-report.json
+
+artifacts:
+  - name: mytool-linux
+    path: dist/mytool-linux-amd64.tar.gz
+    binary: mytool
+    runs_on: [linux/amd64, linux/arm64]
+    checks:
+      - args: ["--version"]
+        timeout: 60s
+        expect:
+          exit_code: 0
+          stdout_contains: ["mytool"]
+  - name: mytool-macos
+    path: dist/mytool-darwin-arm64.tar.gz
+    binary: mytool
+    runs_on: [darwin/amd64, darwin/arm64]
+    checks:
+      - args: ["--version"]
+        timeout: 60s
+        expect:
+          exit_code: 0
+          stdout_contains: ["mytool"]
+  - name: mytool-windows
+    path: dist/mytool-windows-amd64.zip
+    binary: mytool.exe
+    runs_on: [windows/amd64, windows/arm64]
+    checks:
+      - args: ["--version"]
+        timeout: 60s
+        expect:
+          exit_code: 0
+          stdout_contains: ["mytool"]
 ```
+
+`.github/workflows/shipsmoke-published.yml`:
+
+```yaml
+name: shipsmoke — verify published release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to verify (defaults to the release from the event)
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify-published:
+    name: ${{ matrix.artifact }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            artifact: mytool-linux
+            asset: mytool-linux-amd64.tar.gz
+          - os: macos-15
+            artifact: mytool-macos
+            asset: mytool-darwin-arm64.tar.gz
+          - os: windows-2025
+            artifact: mytool-windows
+            asset: mytool-windows-amd64.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$EVENT_TAG}"
+          if [ -z "$TAG" ]; then
+            echo "::error::no tag to verify: trigger on a published release or pass inputs.tag"
+            exit 1
+          fi
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*|v[0-9]*.[0-9]*|[0-9]*.[0-9]*.[0-9]*|[0-9]*.[0-9]*|v[0-9]*.[0-9]*.[0-9]*-*|[0-9]*.[0-9]*.[0-9]*-*) ;;
+            *) echo "::error::refusing unexpected release tag: $TAG"; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse unfilled asset placeholders
+        shell: bash
+        env:
+          ASSET: ${{ matrix.asset }}
+          ARTIFACT: ${{ matrix.artifact }}
+        run: |
+          set -euo pipefail
+          case "$ASSET" in
+            *SET-ME*)
+              echo "::error::the generated config still has a placeholder asset for $ARTIFACT: $ASSET"
+              echo "Re-run: shipsmoke init --ci --published --name mytool --asset-linux ... --asset-darwin ... --asset-windows ..."
+              echo "Refusing to continue: pointing at a non-existent asset would report green while testing nothing."
+              exit 1 ;;
+          esac
+
+      - name: Download the published asset
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          ASSET: ${{ matrix.asset }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          URL="https://github.com/${REPO}/releases/download/${TAG}/${ASSET}"
+          curl -fsSL --retry 3 --retry-delay 2 -o "dist/$ASSET" "$URL"
+          ls -l "dist/$ASSET"
+
+      - name: Verify the downloaded artifact really runs
+        uses: geyutu6755/shipsmoke@v1
+        with:
+          version: v1.0.3
+          config: .shipsmoke.yml
+          artifact: ${{ matrix.artifact }}
+          report: dist/shipsmoke-report.json
+
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: shipsmoke-published-${{ matrix.artifact }}
+          path: dist/shipsmoke-report.json
+          if-no-files-found: ignore
+```
+
+Why it is shaped this way:
+
+- **No build step.** The gate consumes bytes that already exist. If it rebuilt,
+  it would test the checkout again and prove nothing about the release.
+- **No interpolation inside `run:`.** Every value arrives through `env:`;
+  `${{ }}` inside a run block is script injection. `on: release` fields are
+  attacker-influenceable text (a tag name is editable in the Release UI), which
+  is why the tag is grammar-checked before it reaches a URL.
+- **Placeholders fail closed.** Omit an `--asset-*` flag and the emitted name is
+  `SET-ME-…`; the workflow refuses to run that entry instead of downloading
+  nothing and reporting green.
+- **It runs after publish.** `release: published` is the only trigger that can
+  observe the published artifact. Use the pre-publish gate to block, this one to
+  detect; a broken release is already out either way, so this job is an alarm,
+  not a fence.
+
+Check it locally without publishing, against a release that already exists:
+
+```bash
+mkdir -p dist && cd dist
+curl -fsSLO https://github.com/OWNER/REPO/releases/download/TAG/mytool-windows-amd64.zip
+shipsmoke check --artifact mytool-windows
+```
+
+On a Windows host only the windows artifact runs; the others report SKIP with
+the reason. That is the correct outcome, not a shortfall — see
+[VERIFICATION_LAYERS.md](VERIFICATION_LAYERS.md).
 
 The v1.0 release workflow of this repository demonstrates the full pattern:
 build → package → checksum → verify on the host-matching runner → publish.

@@ -1,7 +1,8 @@
 # Limitations
 
-Honest boundaries of ShipSmoke v1.0.0. Nothing here is hidden behind a
-flag — these are scope decisions with reasons.
+Honest boundaries of ShipSmoke v1.0.3 (and the `fix/v1.0.4-reliability`
+branch). Nothing here is hidden behind a flag — these are scope decisions with
+reasons.
 
 ## Artifact formats
 
@@ -76,9 +77,12 @@ flag — these are scope decisions with reasons.
 
 - The composite action downloads a shipsmoke release or uses `binary-path`;
   it does not build from source (keep the quality gate dependency-free).
-- Post-release re-download verification is a documented recipe rather than
-  deep action support in v1.0; the build-then-publish gate is fully
-  implemented.
+- Post-release re-download verification is now a **generated workflow**
+  (`shipsmoke init --ci --published`), not a hand-copied recipe. What it still
+  is *not*: it cannot block a publish (it runs after one, and reports), it needs
+  the release asset names supplied per platform, and it verifies that the
+  artifact extracts and runs — not that its contents are functionally correct.
+  The build-then-publish gate remains the fence; this gate is the alarm.
 
 ## Platform notes
 

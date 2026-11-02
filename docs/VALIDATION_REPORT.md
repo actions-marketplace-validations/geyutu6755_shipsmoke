@@ -92,7 +92,7 @@ ubuntu-24.04, macos-15 (arm64), and windows-2025:
 | Release published | https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.0 |
 | v1.0.1 release (go-install version reporting fix) | https://github.com/geyutu6755/shipsmoke/actions/runs/41227510659 → https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.1 |
 | go install path verified | `go install github.com/geyutu6755/shipsmoke/cmd/shipsmoke@v1.0.1` → binary reports `shipsmoke v1.0.1 (windows/amd64)` |
-| Assets (7) | checksums.txt + 6 platform archives: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64 (tar.gz), windows/amd64, windows/arm64 (zip) |
+| Assets (9) | checksums.txt + 6 platform archives (darwin/amd64, darwin/arm64, linux/amd64, linux/arm64 as tar.gz; windows/amd64, windows/arm64 as zip) + the 2 source bundles GitHub attaches automatically (zip, tar.gz). Counted from the v1.0.3 release page on 2026-11-01; an earlier revision of this page said 7, counting only what the workflow uploads. |
 | Pre-publish execution gate | Build jobs verified host-matching artifacts with shipsmoke before the release job ran (cross targets skipped with explicit log line) |
 | checksums.txt verified | downloaded locally; `sha256sum -c` → `shipsmoke_windows_amd64.zip: OK` |
 | Release binary downloaded and run | `shipsmoke version` → `shipsmoke v1.0.0 (windows/amd64)`, commit 9cda5f2, built 2026-10-31T17:53:43Z |
@@ -183,7 +183,7 @@ Checked against the completion criteria:
 7. Config and Actions examples reproducible — yes (examples green in CI;
    README/action.yml recipes).
 8. Documentation and release assets complete — yes (README EN/中文, docs/,
-   CHANGELOG, SECURITY, CONTRIBUTING, CoC, LICENSE, 7 release assets).
+   CHANGELOG, SECURITY, CONTRIBUTING, CoC, LICENSE, 9 release assets).
 9. GitHub repository published — https://github.com/geyutu6755/shipsmoke (public,
    topics set, CI badge).
 10. Final acceptance of real release artifacts recorded above — yes.

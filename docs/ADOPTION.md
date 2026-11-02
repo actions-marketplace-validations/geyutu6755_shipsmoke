@@ -3,6 +3,15 @@
 To keep claims honest, adoption is tracked in four separate tiers. Anything
 not in tier 3 or 4 must never be described as "used by" anyone.
 
+## Tier 0 — Local trial by the maintainer against someone else's artifacts
+
+Running ShipSmoke against a third party's **published** artifacts on our own
+machine, with no contact and no commitment from them.
+
+- Evidence: recorded below, per trial.
+- Counts as: proof the tool works on a real-world artifact shape.
+- **Never** counts as adoption, and never as "project X uses ShipSmoke".
+
 ## Tier 1 — Self-verification (implemented)
 
 ShipSmoke verifies its own release artifacts on real runners before every
@@ -43,10 +52,21 @@ external maintainer explicitly stating they adopted it (with link).
 
 | Tier | State |
 |---|---|
+| 0 | one trial: termide 0.48.0, verified locally on Windows (see below) |
 | 1 | yes — every release |
-| 2 | yes — all green runs since v1.0.2 |
-| 3 | none yet (honest baseline at v1.0.3) |
+| 2 | yes — harness exists and its **latest** run is green on all three OSes. Not "all green since v1.0.2": the harness history contains failed runs (including one `verify against shipsmoke v1.0.3` run) while the workflow itself was being fixed. Wording corrected 2026-11-01 after checking the run list. |
+| 3 | none yet (honest baseline) |
 | 4 | none yet |
+
+## Tier 0 trial record
+
+| date | project | artifact | host | what ran | result |
+|---|---|---|---|---|---|
+| 2026-11-01 | termide/termide 0.48.0 | `termide-0.48.0-x86_64-pc-windows-msvc.zip` (downloaded from their Release) | windows/amd64, released shipsmoke v1.0.3 | extracted, then executed `termide.exe --version` and `--help` | PASS, 2 checks, exit 0; linux/darwin artifacts reported SKIP with reason |
+| 2026-11-01 | same, truncated to 50% | local copy (simulated partial upload — **not** a claim about their release) | windows/amd64 | extraction only | ERROR `not a valid zip file`, exit 1 |
+
+No contact was made with the termide maintainers and nothing here implies they
+know about ShipSmoke.
 
 ## First external users — concrete plan
 
