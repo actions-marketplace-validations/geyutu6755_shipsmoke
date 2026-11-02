@@ -124,7 +124,10 @@ open, and do not re-introduce them:
 Still open, by construction rather than oversight:
 
 - `windows/arm64` ships unexecuted (`build-only`); the job summary says so.
-- `-race`/fuzz are Linux-CI-only; they need cgo.
+- `-race` runs in CI only, and only from this branch onward — before it, no
+  release had ever been race-checked (needs cgo; the dev machine has no C
+  compiler and CI never invoked it). Fuzzing is Linux-CI-only for the same
+  cgo reason.
 - The pinning script checks ref **form**, not that a SHA matches its `# vN`
   comment — labels were verified by hand against `git ls-remote --tags`.
 - **Tier 3 adoption is zero.** A trial we run on someone else's artifacts is

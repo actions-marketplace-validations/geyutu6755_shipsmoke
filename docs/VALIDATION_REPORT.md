@@ -159,6 +159,63 @@ New v1.0.2 evidence (all real CI):
 | Independent integration repo: `@v1` + `version: v1.0.3`, verify + refuse-tampered, 3 OS | https://github.com/geyutu6755/shipsmoke-integration/actions/runs/41272145878 | PASS |
 | No fake-greens: heredocs remain banned (cigen tests assert), all generated configs cat'ed before use, needs-guard present | code review + CI | confirmed |
 
+## 6e. v1.0.4 reliability round — branch evidence (2026-11-02, not released)
+
+Branch `fix/v1.0.4-reliability`, head `f811c10`, opened as
+[draft PR #1](https://github.com/geyutu6755/shipsmoke/pull/1). **No tag and no
+Release were created for this work.**
+
+Real GitHub-hosted runs on that commit:
+
+| workflow | run | result |
+|---|---|---|
+| CI (test ×3 OS, self-verify ×3 OS, fuzz + govulncheck + pinning on Linux) | [25](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865575) | success |
+| action-test (fetch-script suite + `uses: ./` e2e ×3 OS + injection regression) | [4](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865584) | success |
+| example-go-cli | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865589) | success |
+| example-rust-cli | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865709) | success |
+| example-c-cli | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865746) | success |
+
+`Dependency pinning` is a new job and it is green here; that is the first CI run
+in which the claim "every third-party Action ref is SHA-pinned" is machine
+checked rather than asserted by hand.
+
+Before/after method (this is what makes the fixes trustworthy rather than
+claimed): the new regression tests were run against a detached worktree of
+`origin/main`, i.e. pre-fix code.
+
+| defect | pre-fix result | post-fix result |
+|---|---|---|
+| `check --quiet` | test binary died with the nil-pointer panic at `cli.go:145` → `report.go:59` | 6 tests pass; PASS/FAIL/ERROR/SKIP/NO-CHECKS, JSON report and exit codes asserted |
+| `<cmd> --help` | `check/validate/init` each exit 2 with `flag: help requested`, no usage | usage on stdout, exit 0; unknown flag and bad bool value still exit 2 with usage on stderr |
+| `env: inherit` warning | not observable: injected stderr stayed empty | warning captured through `Options.Stderr` |
+| lookalike `checksums.txt` name | pre-fix fetch script matched it, **extracted it, exit 0** (2 test failures) | refused, exit 2, no extraction; fetch suite 30/30 locally and green on 3 OSes |
+| per-check signal handler | leaked one goroutine + notifier per check | goroutine count stable across 4 runs of a 6-check config; Unix SIGINT aborts remaining checks |
+
+Post-release gate against a real third-party release (Tier 0, self-performed):
+`init --ci --published --name termide` output plus termide 0.48.0's actual
+published assets, downloaded from their Release:
+
+- `…-x86_64-pc-windows-msvc.zip` (200, 21 262 423 bytes) → extracted, ran
+  `termide.exe --version`, **PASS**, exit 0.
+- linux tar.gz and darwin tar.gz (both 200) → **SKIP** with target-vs-host
+  reasons on a Windows host, which is the designed behaviour.
+- same zip truncated to 50% → **ERROR** `not a valid zip file`, exit 1.
+- `--quiet` on that same run worked, which is precisely the path that crashed in
+  the released v1.0.3 binary.
+- Placeholder behaviour: generating without `--asset-*` emits `SET-ME-*` names in
+  the matrix and the guard step exits 1 on them (verified by executing the
+  emitted shell logic) while a real asset name passes.
+
+Explicitly **not** claimed by this round: execution of our own
+darwin/linux/arm64 release artifacts, `windows/arm64` execution (still
+`build-only`), any third-party adoption, and `gh attestation verify` (no `gh` in
+this environment). One disclosure worth stating plainly: `-race` had never run
+for any release — it needs cgo, which is unavailable on a machine without a C
+compiler, and no CI job invoked it either. This round adds
+`go test -race ./...` to the Linux job, so race detection begins with this
+branch rather than having been true before it. See
+docs/LIMITATIONS.md and docs/DEVELOPMENT_STATUS.md.
+
 ## 7. Final acceptance conclusion
 
 **ACCEPTED — ShipSmoke v1.0.3 (current release) is released and verified.**

@@ -65,6 +65,10 @@ adheres to [Semantic Versioning](https://semver.org/).
 - New regression tests across `cli`, `engine`, `cigen` and `report`, including a
   check that no generated workflow interpolates `${{ }}` inside a `run:` block
   or uses a heredoc — the two patterns behind the v1.0.1 fake-green incident.
+- CI now runs `go test -race` on Linux. Disclosed rather than glossed: the race
+  detector had **never** run for any release. It requires cgo, so it cannot run
+  on a machine without a C toolchain, and no CI job invoked it either — the
+  concurrent runner and engine had therefore never been race-checked anywhere.
 
 ### Removed
 

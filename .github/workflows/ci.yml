@@ -43,6 +43,14 @@ jobs:
       - name: Unit + integration tests
         run: go test -v -count=1 ./...
 
+      # The engine and runner are concurrent (process groups, signal handling,
+      # capped writers), and the race detector had never actually been run:
+      # it needs cgo, which is unavailable on a machine without a C toolchain,
+      # and no CI job invoked it. Linux runners have gcc.
+      - name: Race detector
+        if: runner.os == 'Linux'
+        run: go test -race -count=1 ./...
+
       - name: Fuzz extractors (short CI run)
         if: runner.os == 'Linux'
         run: |

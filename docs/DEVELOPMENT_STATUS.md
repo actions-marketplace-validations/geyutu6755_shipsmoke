@@ -70,8 +70,11 @@ of claim this project should not make.
 
 ### Still open after this round
 
-- **Windows/macOS/Linux parity is CI-only here.** `-race` and fuzzing still
-  cannot run on a machine without a C toolchain; they run on the Linux job.
+- **Windows/macOS/Linux parity is CI-only here.** Fuzzing runs on the Linux job.
+  `-race` could not run locally (needs cgo, and there is no C toolchain here) and
+  **was not invoked by CI either** until this branch added
+  `go test -race ./...` to the Linux job — so no release before v1.0.4 has ever
+  been race-checked. Its first real result is this branch's CI run.
 - **`windows/arm64` is still published unexecuted** (`build-only` in
   `release.yml`): no x64 GitHub-hosted runner executes it. The job summary says
   so instead of claiming a run.
