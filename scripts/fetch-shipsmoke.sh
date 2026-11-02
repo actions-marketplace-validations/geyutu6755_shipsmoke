@@ -102,7 +102,25 @@ curl -fsSL --retry 3 --retry-delay 2 -o "$DEST/checksums.txt" "$BASE_URL/$TAG/ch
   die "download failed: $TAG/checksums.txt (a release without checksums is refused, not executed)"
 
 # --- verify SHA-256 against the manifest ---------------------------------------
-EXPECTED="$(grep -E "^[0-9a-fA-F]{64}[[:space:]][ *]?${ASSET}\$" "$DEST/checksums.txt" | head -1 | awk '{print $1}' || true)"
+# Literal field comparison, not a regex with the asset name interpolated:
+# "$ASSET" contains dots, and an unescaped dot in grep -E matches any byte, so
+# "shipsmoke_linux_amd64.tar.gz" would also be satisfied by a manifest line for
+# "shipsmoke_linux_amd64XtarXgz". The digest is taken from the line whose second
+# field is byte-for-byte the asset we are about to execute.
+EXPECTED=""
+while read -r hash name; do
+  name=${name%$'\r'}    # tolerate a CRLF manifest
+  case "$hash" in
+    "" | *[!0-9a-fA-F]*) continue ;;   # skip anything that is not a bare digest
+  esac
+  [ "${#hash}" -eq 64 ] || continue
+  # "hash  name" is the text-mode form, "hash *name" the binary-mode form.
+  fname=${name#\*}
+  if [ "$fname" = "$ASSET" ]; then
+    EXPECTED="$hash"
+    break
+  fi
+done < "$DEST/checksums.txt"
 if [ -z "$EXPECTED" ]; then
   die "$ASSET is not listed in checksums.txt; refusing to execute an unverified file"
 fi
