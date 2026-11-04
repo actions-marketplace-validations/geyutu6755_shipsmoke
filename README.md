@@ -244,7 +244,7 @@ jobs:
         with:
           config: .shipsmoke.yml
           report: dist/shipsmoke-report.json
-          version: v1.0.3
+          version: v1.0.4
       - name: Publish only if verification passed
         if: success()
         run: echo "all artifacts verified — attach dist/ to your release here"

@@ -188,7 +188,7 @@ jobs:
         with:
           config: .shipsmoke.yml
           report: dist/shipsmoke-report.json
-          version: v1.0.3
+          version: v1.0.4
       - name: 仅在验证通过后发布
         if: success()
         run: echo "全部产物验证通过 —— 在此把 dist/ 附加到你的 release"

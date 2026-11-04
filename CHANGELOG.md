@@ -4,7 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — v1.0.4 candidate (branch `fix/v1.0.4-reliability`, not released)
+## [1.0.4] - 2026-11-04
+
+Released from [PR #1](https://github.com/geyutu6755/shipsmoke/pull/1) (branch
+`fix/v1.0.4-reliability`, 12 commits merged with history via merge commit
+`91c0e62`).
 
 ### Fixed
 

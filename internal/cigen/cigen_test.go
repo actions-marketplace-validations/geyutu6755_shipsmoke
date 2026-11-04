@@ -49,7 +49,7 @@ func TestGenerate(t *testing.T) {
 		}
 		for _, want := range []string{
 			"uses: geyutu6755/shipsmoke@v1",
-			"version: v1.0.3",
+			"version: v1.0.4",
 			"ubuntu-24.04", "macos-15", "windows-2025",
 			"actions/checkout@11d5960a", // SHA-pinned third-party actions
 		} {

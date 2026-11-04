@@ -195,7 +195,7 @@ func TestPublishedWorkflowStructure(t *testing.T) {
 	if !strings.Contains(wf, "geyutu6755/shipsmoke@v1") {
 		t.Error("must use the shipsmoke action")
 	}
-	if !strings.Contains(wf, "version: v1.0.3") {
+	if !strings.Contains(wf, "version: v1.0.4") {
 		t.Error("must pin a released shipsmoke version")
 	}
 	// The shell text must survive Go's format engine: a bare %s inside the

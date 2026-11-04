@@ -366,7 +366,7 @@ jobs:
       - name: Verify the downloaded artifact really runs
         uses: geyutu6755/shipsmoke@v1
         with:
-          version: v1.0.3
+          version: v1.0.4
           config: .shipsmoke.yml
           artifact: ${{ matrix.artifact }}
           report: dist/shipsmoke-report.json

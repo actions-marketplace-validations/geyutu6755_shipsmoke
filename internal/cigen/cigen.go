@@ -69,7 +69,7 @@ const (
 	// shipsmokeActionVersion is the tool release the generated workflow pins.
 	// It must name a release that already exists on GitHub, so it deliberately
 	// lags behind an unreleased working version.
-	shipsmokeActionVersion = "v1.0.3"
+	shipsmokeActionVersion = "v1.0.4"
 )
 
 // Generate returns the .shipsmoke.yml and .github/workflows/shipsmoke.yml
