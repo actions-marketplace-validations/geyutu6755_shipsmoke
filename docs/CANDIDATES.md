@@ -109,6 +109,13 @@ next-phase target list.
 - Release cadence was taken from the latest release page; a project may ship
   again before this list is used.
 
+### Added 2026-11-05 (checked as part of the v1.0.4 round)
+
+| Project | Language | Latest tag | Archives | checksums.txt | Notes / fit rationale |
+|---|---|---|---|---|---|
+| [git-bahn/git-graph](https://github.com/git-bahn/git-graph) | Rust | v0.8.3 | 3 | no checksums manifest observed | 996★, small fixed matrix (linux/macos/windows tar.gz), users install from Releases; exactly the shape `shipsmoke init --ci` covers — likely the lowest-effort genuine candidate. |
+| [mobile-next/mobilecli](https://github.com/mobile-next/mobilecli) | Go | 1.0.22 | 6 (zips) | no checksums manifest observed | 314★ Go CLI for mobile device management; per-arch zips downloaded directly by users; `--stack go` template matches its build. |
+
 ## Outreach policy
 
 No issues, PRs, emails, or social posts about ShipSmoke have been sent to any of

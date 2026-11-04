@@ -121,6 +121,27 @@ docs/LIMITATIONS.md.
 - docs: INTRODUCTION, ADOPTION (tiered honest adoption tracking),
   CANDIDATES (8 evidence-based projects; no outreach performed).
 
+## v1.0.4 round (2026-11-05) — takeover, review, release
+
+- Qoder's fix/v1.0.4-reliability (11 commits) independently reviewed and
+  merged via PR #1 (merge commit 91c0e62, history preserved).
+- Review evidence: local build/vet/gofmt/test green; fetch suite 30/30;
+  pins clean; published gate verified against real v1.0.3 assets
+  (PASS / damaged FAIL / platform-skip exit 3 / SET-ME refusal).
+- CI on the merge commit: all five workflows green (macOS jobs initially
+  cancelled by runner starvation, re-run and genuinely executed — including
+  -race, fuzz, govulncheck).
+- v1.0.4 released: 7/7 jobs green after a darwin re-run; assets verified by
+  download (SHA-256 match, binary self-reports v1.0.4 commit 91c0e62);
+  `go install ...@v1.0.4` verified; `--quiet --help` regression confirmed on
+  the released binary.
+- v1 moved ref updated 3d82fd2 → 91c0e62 (old value recorded here).
+- Channels: homebrew-tap and scoop-bucket bumped to 1.0.4, install tests
+  green; shipsmoke-integration switched to v1.0.4, all green.
+- Tier 0 trial re-run: termide 0.48.0 verified with released v1.0.4
+  (2 PASS on windows, truncation refusal demonstrated); candidates
+  git-bahn/git-graph and mobile-next/mobilecli added with evidence.
+
 ## Final state
 
 - Repository: https://github.com/geyutu6755/shipsmoke (public, MIT)

@@ -63,6 +63,7 @@ external maintainer explicitly stating they adopted it (with link).
 | date | project | artifact | host | what ran | result |
 |---|---|---|---|---|---|
 | 2026-11-01 | termide/termide 0.48.0 | `termide-0.48.0-x86_64-pc-windows-msvc.zip` (downloaded from their Release) | windows/amd64, released shipsmoke v1.0.3 | extracted, then executed `termide.exe --version` and `--help` | PASS, 2 checks, exit 0; linux/darwin artifacts reported SKIP with reason |
+| 2026-11-05 | termide/termide 0.48.0 (re-run with the new release) | same two assets as above, re-downloaded | windows/amd64, released shipsmoke **v1.0.4** | `--version` + `--help` on windows; truncation-refusal control: halving the zip flipped the gate to exit 1, restoring it back to exit 0 | PASS, 2 checks; truncated copy correctly rejected; linux/darwin SKIP with reason |
 | 2026-11-01 | same, truncated to 50% | local copy (simulated partial upload — **not** a claim about their release) | windows/amd64 | extraction only | ERROR `not a valid zip file`, exit 1 |
 
 No contact was made with the termide maintainers and nothing here implies they
