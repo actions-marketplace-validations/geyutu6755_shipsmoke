@@ -50,7 +50,49 @@ Living document. Updated at the end of every phase.
 
 ## Known open issues
 
-- None blocking release. See docs/LIMITATIONS.md for product-scope limitations.
+Honest list, as of the v1.0.4 reliability round on branch
+`fix/v1.0.4-reliability` (2026-11-02). An earlier revision of this page said
+"none blocking release" while a shipped crash existed, which is exactly the kind
+of claim this project should not make.
+
+### Fixed on the branch, awaiting review and a release
+
+| # | Issue | Severity | Evidence it was real |
+|---|---|---|---|
+| 1 | `check --quiet` panicked (nil redactor through a discarded render) | **crash, shipped in v1.0.3** | reproduced with the official release asset; stack trace at `report.go:59` |
+| 2 | `<command> --help` printed a parse error instead of usage | high (usability) | `shipsmoke check --help` → `flag: help requested`, exit 2 |
+| 3 | `action.yml` used movable `actions/upload-artifact@v4` | medium (supply chain) | 1 unpinned ref against 26 SHA-pinned ones |
+| 4 | post-release recipe in docs was an unrunnable sketch | high (adoption) | referenced a path nothing created; verification left as a comment |
+| 5 | one `signal.Notify` + goroutine leaked per check | medium | `withSignalContext()` discarded `cancel`, called per check |
+| 6 | `env: inherit` warning bypassed injected writers | low | wrote to raw `os.Stderr` |
+| 7 | fetch script matched the manifest by regex with unescaped dots | low (hardening) | pre-fix script extracted a lookalike-named asset, exit 0 |
+| 8 | dead `fetched-ci.yml` at repo root | cleanup | built a `teapot` that does not exist here; never in `.github/workflows/` |
+| 9 | generated workflow accepted unvalidated `--asset-*` values (YAML key injection / corruption) | **high, introduced and fixed on this branch** | found by adversarial review; now grammar-checked, quoted, and covered by `TestPublishedRejectsHostileAssetNames` |
+| 10 | generated tag check was a `case` pattern, which is not a validator | **high, same** | `v[0-9]*` accepts newlines and `../`; replaced with an anchored single-line regex, `%q`-quoted error output |
+| 11 | template contained a bare `printf '%s'`, which Go's `Sprintf` consumed as a positional verb | medium, same | generated output had an action ref pasted into a shell line; escaped, and the doc-drift test now fails on it |
+| 12 | fetch script skipped a manifest's last line when it had no trailing newline; uppercase digests refused good files | medium / low | loop keeps the final entry; digest normalised with `tr` (bash 3.2 compatible) |
+| 13 | three doc snippets still taught `actions/checkout@v4` | medium | corrected, and the pinning gate now scans `README*` and `docs/*.md` (verified it fails on reintroduction) |
+| 14 | two of this branch's own tests were weak (self-referential goroutine baseline; interrupt test asserting only "not success") | test quality | both rewritten; the interrupt test now waits for evidence the child is running and bounds elapsed time |
+
+### Still open after this round
+
+- **Windows/macOS/Linux parity is CI-only here.** Fuzzing runs on the Linux job.
+  `-race` could not run locally (needs cgo, and there is no C toolchain here) and
+  **was not invoked by CI either** until this branch added
+  `go test -race ./...` to the Linux job — so no release before v1.0.4 has ever
+  been race-checked. Its first real result is this branch's CI run.
+- **`windows/arm64` is still published unexecuted** (`build-only` in
+  `release.yml`): no x64 GitHub-hosted runner executes it. The job summary says
+  so instead of claiming a run.
+- **Generated workflows pin `geyutu6755/shipsmoke@v1` by tag** by design (see
+  `docs/SUPPLY_CHAIN.md` §3); callers wanting full pinning must use a commit SHA.
+- **Tier 3 adoption: still zero.** Nothing on this branch changes that, and the
+  local trial against termide's artifacts is Tier 0, not adoption.
+- **Pin labels are checked by hand**, not by the new CI script, which verifies
+  ref *form* only (`docs/SUPPLY_CHAIN.md` §3.4).
+
+Product-scope limitations (formats, sandbox boundaries) stay in
+docs/LIMITATIONS.md.
 
 ## v1.0.2 maintenance round (2026-11-01)
 

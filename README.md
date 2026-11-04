@@ -17,30 +17,39 @@ quality gate: a broken artifact fails your CI before your users find out.
 ```console
 $ shipsmoke check
 
-shipsmoke v1.0.0 — verification report
-host: ubuntu-24.04/amd64   config: .shipsmoke.yml   duration: 912ms
+shipsmoke v1.0.3 — verification report
+host: windows/amd64   config: .shipsmoke.yml   duration: 822ms
 
-  mytool-linux-amd64  format=tar.gz (detected: linux/amd64)
-    [PASS] check #1: mytool --version (118ms)
-    [PASS] check #2: mytool --help (104ms)
-  [SKIP] mytool-windows-amd64 — artifact targets [windows/amd64] but host is linux/amd64
+  [SKIP] gokit-unix — artifact targets [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64] but host is windows/amd64
+  gokit-windows  format=zip (detected: windows/amd64)
+    [PASS] check #1: gokit.exe --version (475ms)
 
-  summary: 2 passed, 0 failed, 1 skipped, 0 errored  →  PASS
+  summary: 1 passed, 0 failed, 1 skipped, 0 errored  →  PASS
 
-json report: shipsmoke-report.json
+json report: dist/shipsmoke-report.json
 ```
 
-*(Real terminal output from the self-verification CI run.)*
+*(Real output of the released v1.0.3 binary verifying
+[`examples/go-cli`](examples/go-cli) on a Windows machine. The SKIP is the
+point: an artifact that does not target this OS is reported as unverified
+rather than counted as a pass. On Linux and macOS runners the same config runs
+the tar.gz and skips the zip.)*
 
 ## Try it in one minute
 
 ```bash
 # install (see all options below), then inside any Go CLI project:
+mkdir -p dist
 go build -o dist/mytool .                              # build
 tar -czf dist/mytool.tar.gz -C dist mytool             # package (zip on Windows)
 shipsmoke init --ci --stack go --name mytool           # generate .shipsmoke.yml + 3-platform CI
 shipsmoke check                                        # verify the artifact really runs
 ```
+
+The generated config asserts `mytool --version` exits 0 and prints `mytool`, so
+if your CLI spells its version differently, edit `.shipsmoke.yml` (or run
+`shipsmoke check` first and read the failure). Nothing about ShipSmoke assumes a
+language — it runs the bytes and checks what comes back.
 
 ## See it block a broken release
 
@@ -64,11 +73,16 @@ truncated to 741624 of 1483249 bytes
 == 5. publish step would be skipped (verify exited 1) ==
 ```
 
-The same gate, running from an **independent project** (not this repo's own
-tests), on all three operating systems:
+The same gate, driven from a **separate repository** written as an outside
+consumer of the action:
 [shipsmoke-integration](https://github.com/geyutu6755/shipsmoke-integration/actions)
-— including jobs that corrupt an artifact on purpose and require the gate to
-fail ([latest run](https://github.com/geyutu6755/shipsmoke-integration/actions/runs/41266540816)).
+— three operating systems plus jobs that corrupt an artifact on purpose and
+require the gate to fail. It consumes the published `v1` tag rather than this
+repo's sources, so it proves the onboarding path works. It is still the same
+maintainer's repository, which under the tier model in
+[docs/ADOPTION.md](docs/ADOPTION.md) is **Tier 2 — not third-party adoption**.
+ShipSmoke has no Tier 3 adopters yet; the README says so plainly rather than
+implying otherwise.
 
 ## Why ShipSmoke
 
@@ -208,8 +222,8 @@ jobs:
         os: [ubuntu-24.04, macos-15, windows-2025]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: 'stable'
       - name: Build and package
@@ -312,12 +326,33 @@ shipsmoke check      run verification (the quality gate)
   --report PATH      JSON report path (overrides config)
   --allow-empty      exit 0 when nothing executed (default exit 3)
   --no-color         disable colored output
+  --quiet            failures, skips and the summary only
 shipsmoke validate   validate the config without executing anything
+  --config PATH      config path (default ./.shipsmoke.yml)
 shipsmoke init       write an example .shipsmoke.yml
+  --force            overwrite files that already exist
+  --ci               also generate a GitHub Actions workflow
+  --stack go|rust|c  with --ci: which build stack to emit (required with --ci)
+  --name TOOL        with --ci: your binary name (default: current directory)
+  --published        with --ci: the post-release gate instead of a build gate
+  --asset-linux NAME      with --published: release asset for linux/amd64
+  --asset-darwin NAME     with --published: release asset for darwin/arm64
+  --asset-windows NAME    with --published: release asset for windows/amd64
 shipsmoke version    version, commit, platform
 ```
 
-`shipsmoke check --help` documents every flag.
+`shipsmoke <command> --help` prints this list with each flag's own description,
+straight from the code that parses it.
+
+Two CI shapes, deliberately different:
+
+| | what it does | what it proves |
+|---|---|---|
+| `init --ci --stack …` | build → package → verify → publish | the artifact you are **about** to publish runs |
+| `init --ci --published` | download the published asset → run it | the artifact users **actually got** runs |
+
+The first blocks a bad release; the second detects one. A project with an
+existing release pipeline can only be served by the second.
 
 ## Documentation
 
@@ -331,7 +366,7 @@ shipsmoke version    version, commit, platform
 - [Supply-chain boundaries](docs/SUPPLY_CHAIN.md) — what CI trusts and why
 - [Maintainer introduction](docs/INTRODUCTION.md) · [Candidate projects](docs/CANDIDATES.md) · [Adoption tracking](docs/ADOPTION.md)
 - [Research](docs/RESEARCH.md) — competitive landscape and name check
-- [Validation report](docs/VALIDATION_REPORT.md) — every claim, backed by CI run links
+- [Validation report](docs/VALIDATION_REPORT.md) — evidence per claim, with run links where a link exists
 - [Development status](docs/DEVELOPMENT_STATUS.md) — phase-by-phase record
 
 ## Development

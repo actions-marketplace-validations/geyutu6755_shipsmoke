@@ -43,6 +43,14 @@ jobs:
       - name: Unit + integration tests
         run: go test -v -count=1 ./...
 
+      # The engine and runner are concurrent (process groups, signal handling,
+      # capped writers), and the race detector had never actually been run:
+      # it needs cgo, which is unavailable on a machine without a C toolchain,
+      # and no CI job invoked it. Linux runners have gcc.
+      - name: Race detector
+        if: runner.os == 'Linux'
+        run: go test -race -count=1 ./...
+
       - name: Fuzz extractors (short CI run)
         if: runner.os == 'Linux'
         run: |
@@ -140,3 +148,20 @@ jobs:
           name: shipsmoke-${{ matrix.os }}
           path: dist/shipsmoke_*
           retention-days: 5
+
+  supply-chain:
+    name: Dependency pinning
+    needs: []
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Third-party Actions must be referenced by commit SHA: a movable tag can
+      # be re-pointed at malicious code and then runs with this repo's token.
+      - name: Every third-party action ref is SHA-pinned
+        run: bash scripts/check-action-pins.bash
+
+      # The composite action is what outside callers execute, so its own fetch
+      # script is tested here rather than only in the action workflow.
+      - name: Fetch script refuses unverified downloads
+        run: bash scripts/fetch-shipsmoke_test.bash

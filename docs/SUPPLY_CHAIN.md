@@ -9,7 +9,7 @@ and why the chosen mitigations were picked over the alternatives.
 
 | Dependency | Risk | Mitigation chosen | Rejected alternatives |
 |---|---|---|---|
-| Third-party Actions (checkout, setup-go, upload/download-artifact, setup-qemu, gh-release, attest-build-provenance) | Movable major tags can be re-pointed at malicious code; the action runs with the workflow's token | **Pinned to full commit SHA** in every workflow of this repo, with the tag recorded as a comment. Upgrade = deliberate commit that changes the SHA. | *Renovate/dependabot auto-bumps* — reintroduce movable refs; *Actions dependency lockfile* — there is no first-class GitHub lockfile format for Actions (unlike npm/pip); SHA pinning **is** the lockfile. |
+| Third-party Actions (checkout, setup-go, upload/download-artifact, setup-qemu, gh-release, attest-build-provenance) | Movable major tags can be re-pointed at malicious code; the action runs with the workflow's token | **Pinned to full commit SHA** in every workflow **and in `action.yml`**, with the tag recorded as a comment. Upgrade = deliberate commit that changes the SHA. `scripts/check-action-pins.bash` runs in CI and fails on any movable third-party ref, so this cannot regress silently. | *Renovate/dependabot auto-bumps* — reintroduce movable refs; *Actions dependency lockfile* — there is no first-class GitHub lockfile format for Actions (unlike npm/pip); SHA pinning **is** the lockfile. |
 | The shipsmoke composite action itself (`uses: geyutu6755/shipsmoke@v1`) | The `v1` tag moves between releases by design | Documented contract: the **tool** version is pinned separately via the `version:` input, and the action's download step SHA-256-verifies the fetched asset against the release's `checksums.txt`. Callers wanting maximal rigor pin the action by full commit SHA too (documented in the README recipe). | Marketplace-only distribution — an action on the Marketplace is still referenced by tag. |
 | Downloaded release assets (in the action's fetch step) | Truncated/corrupted/tampered downloads | Verify SHA-256 against the release manifest **before extraction**; refuse execution on any mismatch; expose `verified:` output. | Trusting the tag alone — tags do not protect against a compromised upload. |
 | `gopkg.in/yaml.v3` (the only Go dependency) | Known-vulnerability risk | `govulncheck` gate in CI on every push (v1.0.2 already caught GO-2026-4869 this way); go.mod requires the patched toolchain line. | Vendoring — no benefit for one dependency. |
@@ -43,3 +43,14 @@ remains a roadmap item.
    tag-referenced action.
 3. Docker image digest pinning for the QEMU verification container: follow-up
    work, non-blocking (the verified subject is the checksummed binary).
+4. `scripts/check-action-pins.bash` verifies the **form** of a ref (40-hex SHA)
+   and that no third-party ref is movable. It does not verify that a pinned SHA
+   is the commit its trailing `# v4` comment claims, nor that the commit is
+   upstream-approved. Those labels were checked by hand against
+   `git ls-remote --tags` for the current set (checkout v4.4.0, setup-go v5.6.0,
+   upload-artifact v4.6.2, download-artifact v4.3.0); a future bump is still a
+   human review step. Digest/SHA-to-tag automation is a roadmap item.
+5. `geyutu6755/shipsmoke@v1` is deliberately a movable tag: it is this project's
+   own action, and the fetch step's checksum verification against the release's
+   `checksums.txt` is what bounds a bad release. Callers who want to pin this
+   too can use a full commit SHA; the README recipe says so.

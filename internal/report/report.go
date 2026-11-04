@@ -54,8 +54,12 @@ func (r *Redactor) Add(secret string) {
 	}
 }
 
-// Apply masks every known secret in s.
+// Apply masks every known secret in s. A nil redactor has nothing to redact,
+// which is a valid answer and must not abort a report.
 func (r *Redactor) Apply(s string) string {
+	if r == nil {
+		return s
+	}
 	for _, v := range r.values {
 		if v != "" {
 			s = strings.ReplaceAll(s, v, "***REDACTED***")

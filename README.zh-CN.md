@@ -16,20 +16,22 @@ ShipSmoke 是一个免费、开源、跨平台的命令行工具，用于验证�
 ```console
 $ shipsmoke check
 
-shipsmoke v1.0.0 — verification report
-host: ubuntu-24.04/amd64   config: .shipsmoke.yml   duration: 912ms
+shipsmoke v1.0.3 — verification report
+host: windows/amd64   config: .shipsmoke.yml   duration: 822ms
 
-  mytool-linux-amd64  format=tar.gz (detected: linux/amd64)
-    [PASS] check #1: mytool --version (118ms)
-    [PASS] check #2: mytool --help (104ms)
-  [SKIP] mytool-windows-amd64 — artifact targets [windows/amd64] but host is linux/amd64
+  [SKIP] gokit-unix — artifact targets [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64] but host is windows/amd64
+  gokit-windows  format=zip (detected: windows/amd64)
+    [PASS] check #1: gokit.exe --version (475ms)
 
-  summary: 2 passed, 0 failed, 1 skipped, 0 errored  →  PASS
+  summary: 1 passed, 0 failed, 1 skipped, 0 errored  →  PASS
 
-json report: shipsmoke-report.json
+json report: dist/shipsmoke-report.json
 ```
 
-*（取自自验证 CI 运行的真实终端输出。）*
+*（已发布的 v1.0.3 二进制在 Windows 机器上验证
+[`examples/go-cli`](examples/go-cli) 的真实输出。SKIP 正是重点：不面向当前操作
+系统的产物会被如实报告为「未验证」，而不是被算作通过。在 Linux 与 macOS 运行器
+上，同一份配置会运行 tar.gz 并跳过 zip。）*
 
 ## 为什么选择 ShipSmoke
 
@@ -164,8 +166,8 @@ jobs:
         os: [ubuntu-24.04, macos-15, windows-2025]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: 'stable'
       - name: Build and package
@@ -211,18 +213,26 @@ Action 会写入 Job Summary 表格并上传 JSON 报告。完整教程：
   两者都固定 —— 例如 `uses: geyutu6755/shipsmoke@v1.0.2` 加
   `version: v1.0.2` —— 可获得完全可复现的门禁。
 
-两种接入模式：
+两种接入模式（对应两个不同的问题，不能互相替代）：
 
-1. **构建后、公开发布前验证**（V1.0 完整支持）—— 构建打包后运行
-   ShipSmoke，通过才发布。
-2. **发布后重新下载验证**（文档提供配方）—— 发布完成后下载已发布的资产
-   再跑一遍。见
-   [docs/CONFIGURATION.md](docs/CONFIGURATION.md#post-release-verification)。
+1. **构建后、公开发布前验证** —— 构建打包后运行 ShipSmoke，通过才发布：
+   `shipsmoke init --ci --stack go|rust|c --name TOOL`。它**拦住**一次坏发布。
+2. **发布后重新下载验证** —— 发布完成后下载用户真正会拿到的资产再跑一遍：
+   `shipsmoke init --ci --published --name TOOL --asset-linux … --asset-darwin …
+   --asset-windows …`。它**发现**一次已经发生的坏发布。
+
+已有自建发布流水线的第三方项目，只有第 2 种模式对他们有意义——他们不会为了接入
+本工具重写成第 1 种。配方与字段说明见
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md#post-release-verification)。
 
 [examples/](examples/) 里有完整且经过 CI 验证的 Go、Rust、C 三个示例项目。
-Action 本身还在独立仓库
+
+Action 还在**另一个仓库**
 [shipsmoke-integration](https://github.com/geyutu6755/shipsmoke-integration)
-中于三个操作系统上完成端到端验证，而非仅依赖本项目自检。
+中以「外部使用者」的身份被端到端验证：它消费已发布的 `v1` 标签而非本仓库源码，
+覆盖三个操作系统，并包含故意破坏产物、要求门禁失败的作业。需要注意：该仓库仍由
+同一维护者所有，按 [docs/ADOPTION.md](docs/ADOPTION.md) 的分层属于 **Tier 2，
+不算第三方采用**。ShipSmoke 目前没有 Tier 3 采用者，这里如实说明而不加以暗示。
 
 ## 退出码
 

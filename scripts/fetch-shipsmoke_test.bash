@@ -198,6 +198,37 @@ run_case checksums-missing 2 \
   SHIPS_VERSION="$TAG" \
   SHIPS_RELEASE_BASE_URL="http://127.0.0.1:$PORT"
 
+# 5. manifest names a LOOKALIKE of the asset: correct digest, but the file name
+#    differs in the byte where the asset name has a dot. A regex built from
+#    "$ASSET" treats that dot as "any byte" and would accept this line, so the
+#    fetch would execute a file whose manifest entry is not really about it.
+#    The literal field comparison must refuse it.
+rm -rf "$WORK/runner-temp-lookalike"
+rm -f "$SRV_ROOT/$ASSET"          # drop the tampered copy from case 2
+if [ "$EXT" = "zip" ]; then
+  SRC_W="$(cygpath -w "$FAKE_BIN")"
+  DST_W="$(cygpath -w "$SRV_ROOT/$ASSET")"
+  powershell -NoProfile -Command "Compress-Archive -Path '$SRC_W' -DestinationPath '$DST_W' -Force"
+else
+  tar -czf "$SRV_ROOT/$ASSET" -C "$WORK" "$(basename "$FAKE_BIN")"
+fi
+FRESH_HASH="$($HASH_TOOL "$SRV_ROOT/$ASSET" | awk '{print $1}')"
+LOOKALIKE="$(printf '%s' "$ASSET" | sed 's/\./X/')"
+[ "$LOOKALIKE" != "$ASSET" ] || { echo "FAIL: lookalike name equals the asset"; FAILURES=$((FAILURES + 1)); }
+printf '%s  %s\n' "$FRESH_HASH" "$LOOKALIKE" >"$SRV_ROOT/checksums.txt"
+run_case manifest-name-lookalike 2 \
+  SHIPS_VERSION="$TAG" \
+  SHIPS_RELEASE_BASE_URL="http://127.0.0.1:$PORT" \
+  RUNNER_TEMP="$WORK/runner-temp-lookalike"
+if [ -d "$WORK/runner-temp-lookalike/shipsmoke-action/bin" ] &&
+   ls "$WORK/runner-temp-lookalike/shipsmoke-action/bin" 2>/dev/null | grep -q .; then
+  echo "FAIL: extraction happened despite a lookalike manifest name"
+  FAILURES=$((FAILURES + 1))
+else
+  PASS_COUNT=$((PASS_COUNT + 1))
+  echo "ok: no extraction on lookalike manifest name"
+fi
+
 stop_server
 
 # ---------------------------------------------------------------------------

@@ -92,7 +92,7 @@ ubuntu-24.04, macos-15 (arm64), and windows-2025:
 | Release published | https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.0 |
 | v1.0.1 release (go-install version reporting fix) | https://github.com/geyutu6755/shipsmoke/actions/runs/41227510659 → https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.1 |
 | go install path verified | `go install github.com/geyutu6755/shipsmoke/cmd/shipsmoke@v1.0.1` → binary reports `shipsmoke v1.0.1 (windows/amd64)` |
-| Assets (7) | checksums.txt + 6 platform archives: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64 (tar.gz), windows/amd64, windows/arm64 (zip) |
+| Assets (9) | checksums.txt + 6 platform archives (darwin/amd64, darwin/arm64, linux/amd64, linux/arm64 as tar.gz; windows/amd64, windows/arm64 as zip) + the 2 source bundles GitHub attaches automatically (zip, tar.gz). Counted from the v1.0.3 release page on 2026-11-01; an earlier revision of this page said 7, counting only what the workflow uploads. |
 | Pre-publish execution gate | Build jobs verified host-matching artifacts with shipsmoke before the release job ran (cross targets skipped with explicit log line) |
 | checksums.txt verified | downloaded locally; `sha256sum -c` → `shipsmoke_windows_amd64.zip: OK` |
 | Release binary downloaded and run | `shipsmoke version` → `shipsmoke v1.0.0 (windows/amd64)`, commit 9cda5f2, built 2026-10-31T17:53:43Z |
@@ -159,6 +159,95 @@ New v1.0.2 evidence (all real CI):
 | Independent integration repo: `@v1` + `version: v1.0.3`, verify + refuse-tampered, 3 OS | https://github.com/geyutu6755/shipsmoke-integration/actions/runs/41272145878 | PASS |
 | No fake-greens: heredocs remain banned (cigen tests assert), all generated configs cat'ed before use, needs-guard present | code review + CI | confirmed |
 
+## 6e. v1.0.4 reliability round — branch evidence (2026-11-02, not released)
+
+Branch `fix/v1.0.4-reliability`, opened as
+[draft PR #1](https://github.com/geyutu6755/shipsmoke/pull/1). The verified code
+head is `563e8e9`; a documentation-only commit follows it, and its CI result is
+the link posted on the PR.
+
+Real GitHub-hosted runs. The branch moved during the round, so the runs are
+listed per commit rather than collapsed into one claim; the authoritative
+gate is the run on the final head, whose link is posted on PR #1.
+
+| commit | what changed | CI | action-test | examples go/rust/c |
+|---|---|---|---|---|
+| `f811c10` | fixes + docs | [25](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865575) | [4](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865584) | [41385865589](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865589) / [41385865709](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865709) / [41385865746](https://github.com/geyutu6755/shipsmoke/actions/runs/41385865746) |
+| `8c4436e` | + `go test -race` on Linux | [26](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635793) | [5](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635825) | [41386635805](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635805) / [41386635678](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635678) / [41386635763](https://github.com/geyutu6755/shipsmoke/actions/runs/41386635763) |
+| `563e8e9` | review-round security + test fixes | [28](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626401) | [7](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626393) | [41390626442](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626442) / [41390626400](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626400) / [41390626390](https://github.com/geyutu6755/shipsmoke/actions/runs/41390626390) |
+
+All of the above completed successfully, including the new
+`Dependency pinning` job on every head.
+
+Step-level results on `563e8e9` (read from the Actions API and the downloaded
+job log, not inferred from a green tick):
+
+| job | gofmt | vet | tests | race | fuzz | govulncheck |
+|---|---|---|---|---|---|---|
+| Test (ubuntu-24.04) | success | success | success | **success** | success | success |
+| Test (macos-15) | Linux-only, skipped | success | success | skipped | skipped | skipped |
+| Test (windows-2025) | skipped | success | success | skipped | skipped | skipped |
+
+`Self-verify artifact`, `Composite action e2e via uses: ./` and
+`Fetch script security tests` each ran on ubuntu-24.04, macos-15 and
+windows-2025, all success.
+
+From the ubuntu log on that commit:
+
+```
+=== RUN   TestInterruptCancelsRemainingChecks
+--- PASS: TestInterruptCancelsRemainingChecks (0.67s)
+    interrupted run: exit=1 elapsed=199.150803ms checks=3
+##[group]Run go test -race -count=1 ./...
+```
+
+199 ms elapsed against three configured 30-second sleeps is the discriminator:
+the later checks did not run. Under the old per-check handler two of them would
+have consumed ~60 s. The log contains no `--- SKIP` and no `--- FAIL` line, and
+no `DATA RACE` report appears anywhere in it.
+
+`Dependency pinning` is a new job and it is green here; that is the first CI run
+in which the claim "every third-party Action ref is SHA-pinned" is machine
+checked rather than asserted by hand.
+
+Before/after method (this is what makes the fixes trustworthy rather than
+claimed): the new regression tests were run against a detached worktree of
+`origin/main`, i.e. pre-fix code.
+
+| defect | pre-fix result | post-fix result |
+|---|---|---|
+| `check --quiet` | test binary died with the nil-pointer panic at `cli.go:145` → `report.go:59` | 6 tests pass; PASS/FAIL/ERROR/SKIP/NO-CHECKS, JSON report and exit codes asserted |
+| `<cmd> --help` | `check/validate/init` each exit 2 with `flag: help requested`, no usage | usage on stdout, exit 0; unknown flag and bad bool value still exit 2 with usage on stderr |
+| `env: inherit` warning | not observable: injected stderr stayed empty | warning captured through `Options.Stderr` |
+| lookalike `checksums.txt` name | pre-fix fetch script matched it, **extracted it, exit 0** (2 test failures) | refused, exit 2, no extraction; fetch suite 30/30 locally and green on 3 OSes |
+| per-check signal handler | leaked one goroutine + notifier per check | goroutine count stable across 4 runs of a 6-check config; on CI run 26 the Unix-only `TestInterruptCancelsRemainingChecks` logs `--- PASS (0.65s)` — a real SIGINT aborted the remaining checks, and it was not skipped (the log contains no `--- SKIP` line at all) |
+
+Post-release gate against a real third-party release (Tier 0, self-performed):
+`init --ci --published --name termide` output plus termide 0.48.0's actual
+published assets, downloaded from their Release:
+
+- `…-x86_64-pc-windows-msvc.zip` (200, 21 262 423 bytes) → extracted, ran
+  `termide.exe --version`, **PASS**, exit 0.
+- linux tar.gz and darwin tar.gz (both 200) → **SKIP** with target-vs-host
+  reasons on a Windows host, which is the designed behaviour.
+- same zip truncated to 50% → **ERROR** `not a valid zip file`, exit 1.
+- `--quiet` on that same run worked, which is precisely the path that crashed in
+  the released v1.0.3 binary.
+- Placeholder behaviour: generating without `--asset-*` emits `SET-ME-*` names in
+  the matrix and the guard step exits 1 on them (verified by executing the
+  emitted shell logic) while a real asset name passes.
+
+Explicitly **not** claimed by this round: execution of our own
+darwin/linux/arm64 release artifacts, `windows/arm64` execution (still
+`build-only`), any third-party adoption, and `gh attestation verify` (no `gh` in
+this environment). One disclosure worth stating plainly: `-race` had never run
+for any release — it needs cgo, which is unavailable on a machine without a C
+compiler, and no CI job invoked it either. This branch adds
+`go test -race ./...` to the Linux job; its first execution is recorded in the
+step table above (`##[group]Run go test -race -count=1 ./...`, job conclusion
+success, no `DATA RACE` report anywhere in the log, no skipped or failed tests).
+See docs/LIMITATIONS.md and docs/DEVELOPMENT_STATUS.md.
+
 ## 7. Final acceptance conclusion
 
 **ACCEPTED — ShipSmoke v1.0.3 (current release) is released and verified.**
@@ -183,7 +272,7 @@ Checked against the completion criteria:
 7. Config and Actions examples reproducible — yes (examples green in CI;
    README/action.yml recipes).
 8. Documentation and release assets complete — yes (README EN/中文, docs/,
-   CHANGELOG, SECURITY, CONTRIBUTING, CoC, LICENSE, 7 release assets).
+   CHANGELOG, SECURITY, CONTRIBUTING, CoC, LICENSE, 9 release assets).
 9. GitHub repository published — https://github.com/geyutu6755/shipsmoke (public,
    topics set, CI badge).
 10. Final acceptance of real release artifacts recorded above — yes.

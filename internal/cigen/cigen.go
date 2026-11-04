@@ -5,10 +5,16 @@
 // using their standard toolchains and the same build/package/verify shape
 // proven end-to-end in the shipsmoke-integration repository. Anything else
 // is out of scope and users are told so.
+//
+// Two distinct gates are generated, and they are not interchangeable:
+//
+//	init --ci --stack go|rust|c   PRE-publish: build → package → verify → publish
+//	init --ci --published         POST-release: download the published asset → run it
 package cigen
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -61,6 +67,8 @@ const (
 	shaSetupGo  = "actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff"        // v5
 	shaUpload   = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" // v4
 	// shipsmokeActionVersion is the tool release the generated workflow pins.
+	// It must name a release that already exists on GitHub, so it deliberately
+	// lags behind an unreleased working version.
 	shipsmokeActionVersion = "v1.0.3"
 )
 
@@ -178,4 +186,260 @@ jobs:
           path: dist/shipsmoke-report.json
           if-no-files-found: ignore
 `, name, shipsmokeActionVersion, shaCheckout, setup, build, shaUpload)
+}
+
+// --- post-release gate ---
+
+// PublishedAssets are the release asset names per platform, exactly as they
+// appear in the GitHub Release. An empty field means "not supplied": the
+// generator emits a visible placeholder that the workflow refuses to run, so a
+// half-filled config fails loudly instead of quietly verifying nothing.
+type PublishedAssets struct {
+	Linux   string
+	Darwin  string
+	Windows string
+}
+
+// placeholderPrefix marks an asset name the maintainer still has to fill in.
+const placeholderPrefix = "SET-ME-"
+
+// assetPattern is deliberately narrow: release asset names in the wild are
+// made of these characters. Anything else is rejected rather than embedded,
+// because the value is written into two YAML files and then used to build a
+// download URL. A newline would close the mapping and inject keys into a
+// workflow that runs with the caller's token; "*", "#" or a leading space
+// corrupts the emitted document outright.
+var assetPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+~-]{0,254}$`)
+
+// ValidateAsset checks one user-supplied release asset name.
+func ValidateAsset(name string) error {
+	if name == "" {
+		return nil // absent is fine: it becomes a placeholder
+	}
+	if !assetPattern.MatchString(name) {
+		return fmt.Errorf("asset name %q is not usable: use letters, digits, '.', '_', '+', '~', '-' and start with a letter or digit (no spaces, slashes, quotes, ':' or newlines)", name)
+	}
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("asset name %q contains '..' which cannot be part of a release asset path", name)
+	}
+	return nil
+}
+
+// ValidateAssets checks every supplied asset name, naming the platform so the
+// error says which flag to fix.
+func ValidateAssets(a PublishedAssets) error {
+	for _, p := range []struct{ label, value string }{
+		{"--asset-linux", a.Linux},
+		{"--asset-darwin", a.Darwin},
+		{"--asset-windows", a.Windows},
+	} {
+		if err := ValidateAsset(p.value); err != nil {
+			return fmt.Errorf("%s: %w", p.label, err)
+		}
+	}
+	return nil
+}
+
+func publishedAsset(given, suggestion string) string {
+	if strings.TrimSpace(given) == "" {
+		return placeholderPrefix + suggestion
+	}
+	return given
+}
+
+// Resolve fills any unspecified asset name with its visible placeholder. Callers
+// that need to know whether the user still has work to do must test the
+// resolved value: an empty input field is not itself a placeholder string.
+func (a PublishedAssets) Resolve() PublishedAssets {
+	return PublishedAssets{
+		Linux:   publishedAsset(a.Linux, "linux-amd64.tar.gz"),
+		Darwin:  publishedAsset(a.Darwin, "darwin-arm64.tar.gz"),
+		Windows: publishedAsset(a.Windows, "windows-amd64.zip"),
+	}
+}
+
+// HasPlaceholder reports whether any resolved asset name is still a
+// placeholder, so the CLI can tell the user before they discover it in CI.
+func HasPlaceholder(a PublishedAssets) bool {
+	for _, s := range []string{a.Linux, a.Darwin, a.Windows} {
+		if strings.HasPrefix(s, placeholderPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// GeneratePublished returns the .shipsmoke.yml and
+// .github/workflows/shipsmoke-published.yml contents for the post-release gate.
+// Nothing is built here, so no stack is needed.
+func GeneratePublished(name string, assets PublishedAssets) (config string, workflow string, err error) {
+	if err := ValidateName(name); err != nil {
+		return "", "", err
+	}
+	if err := ValidateAssets(assets); err != nil {
+		return "", "", err
+	}
+	a := assets.Resolve()
+	return publishedConfigYAML(name, a), publishedWorkflowYAML(name, a), nil
+}
+
+func publishedArtifactYAML(tool, artName, asset, binary, runsOn string) string {
+	// Quoted so a name that is grammatically valid but YAML-ambiguous (a leading
+	// '*', '~', '>', or something that looks like a date) still round-trips as
+	// the literal asset name.
+	return fmt.Sprintf(`  - name: %[2]s
+    path: "dist/%[3]s"
+    binary: %[4]s
+    runs_on: [%[5]s]
+    checks:
+      - args: ["--version"]
+        timeout: 60s
+        expect:
+          exit_code: 0
+          stdout_contains: ["%[1]s"]
+`, tool, artName, asset, binary, runsOn)
+}
+
+func publishedConfigYAML(name string, a PublishedAssets) string {
+	return fmt.Sprintf(`version: 1
+
+# Generated by "shipsmoke init --ci --published" — the POST-release gate.
+%[1]s
+report:
+  json: dist/shipsmoke-report.json
+
+artifacts:
+%[2]s%[3]s%[4]s`, publishedConfigNote,
+		publishedArtifactYAML(name, name+"-linux", a.Linux, name, "linux/amd64, linux/arm64"),
+		publishedArtifactYAML(name, name+"-macos", a.Darwin, name, "darwin/amd64, darwin/arm64"),
+		publishedArtifactYAML(name, name+"-windows", a.Windows, name+".exe", "windows/amd64, windows/arm64"))
+}
+
+const publishedConfigNote = `# It verifies the asset users download, after it is published: no build step.
+# Paths are relative to the workflow's dist/ directory, which the workflow fills
+# by downloading from your Release. Supply names per platform with
+# --asset-linux / --asset-darwin / --asset-windows, or edit them here.
+# A path still containing SET-ME is refused by the generated workflow rather
+# than passing vacuously.
+# If your archive nests the binary in a directory, adjust "binary" too:
+# shipsmoke lists the archive's top-level entries when it cannot find it.`
+
+func publishedWorkflowYAML(name string, a PublishedAssets) string {
+	return fmt.Sprintf(`name: shipsmoke — verify published release
+
+# POST-release gate: once a Release exists, one job per OS downloads the exact
+# asset users download and ShipSmoke extracts and RUNS it. This is the layer a
+# build-and-test CI structurally cannot cover: an upload truncated in flight,
+# the wrong binary packed inside, a lost executable bit, an archive that
+# extracts but will not start.
+#
+# It complements, and does not replace, the pre-publish gate generated by
+# "init --ci --stack":
+#   pre-publish   build -> package -> verify -> publish   (blocks a bad release)
+#   post-release  download published asset -> verify      (detects a bad release)
+#
+# Third-party actions are pinned to commit SHAs; see docs/SUPPLY_CHAIN.md.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to verify (defaults to the release from the event)
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify-published:
+    name: ${{ matrix.artifact }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            artifact: %[1]s-linux
+            asset: "%[2]s"
+          - os: macos-15
+            artifact: %[1]s-macos
+            asset: "%[3]s"
+          - os: windows-2025
+            artifact: %[1]s-windows
+            asset: "%[4]s"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: %[6]s
+
+      # Values reach the shell only through env:. GitHub expands the ${{ ... }}
+      # expressions outside the shell, so interpolating them inside a run block
+      # would be script injection; no run block below interpolates anything.
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$EVENT_TAG}"
+          if [ -z "$TAG" ]; then
+            echo "::error::no tag to verify: trigger on a published release or pass inputs.tag"
+            exit 1
+          fi
+          # Anchored, single-line grammar. A shell case pattern like v[0-9]*
+          # means "digit then anything at all", so it would accept newlines and
+          # '../' and then write them into GITHUB_OUTPUT and into log lines.
+          if ! printf '%%s' "$TAG" | grep -Eq '^(v)?[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9A-Za-z][0-9A-Za-z.-]*)?$'; then
+            echo "::error::refusing unexpected release tag (expected vX.Y.Z, optionally with a prerelease suffix)"
+            printf 'rejected value (quoted, control chars visible): %%q\n' "$TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse unfilled asset placeholders
+        shell: bash
+        env:
+          ASSET: ${{ matrix.asset }}
+          ARTIFACT: ${{ matrix.artifact }}
+        run: |
+          set -euo pipefail
+          case "$ASSET" in
+            *SET-ME*)
+              echo "::error::the generated config still has a placeholder asset for $ARTIFACT: $ASSET"
+              echo "Re-run: shipsmoke init --ci --published --name %[1]s --asset-linux ... --asset-darwin ... --asset-windows ..."
+              echo "Refusing to continue: pointing at a non-existent asset would report green while testing nothing."
+              exit 1 ;;
+          esac
+
+      - name: Download the published asset
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          ASSET: ${{ matrix.asset }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          URL="https://github.com/${REPO}/releases/download/${TAG}/${ASSET}"
+          echo "downloading $URL"
+          curl -fsSL --retry 3 --retry-delay 2 -o "dist/$ASSET" "$URL"
+          ls -l "dist/$ASSET"
+
+      - name: Verify the downloaded artifact really runs
+        uses: geyutu6755/shipsmoke@v1
+        with:
+          version: %[5]s
+          config: .shipsmoke.yml
+          artifact: ${{ matrix.artifact }}
+          report: dist/shipsmoke-report.json
+
+      - name: Upload verification report
+        if: always()
+        uses: %[7]s
+        with:
+          name: shipsmoke-published-${{ matrix.artifact }}
+          path: dist/shipsmoke-report.json
+          if-no-files-found: ignore
+`, name, a.Linux, a.Darwin, a.Windows, shipsmokeActionVersion, shaCheckout, shaUpload)
 }
