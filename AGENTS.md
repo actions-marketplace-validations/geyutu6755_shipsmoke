@@ -69,8 +69,8 @@ and not a bug.
 Proven by direct execution (Windows, 2026-11-01/02):
 
 - `go build`, `go vet`, `gofmt -l`, `go test ./...` pass; `go test -cover` gives
-  artifact 62.7%, cigen 97.8%, cli 59.6%, config 91.7%, engine 84.6%,
-  report 83.6%, runner 84.6%.
+  artifact 62.7%, cigen 96.6%, cli 79.3%, config 91.7%, engine 84.6%,
+  report 84.1%, runner 84.6% (re-measured 2026-11-04 on 7a2a82d).
 - Released asset `shipsmoke_windows_amd64.zip` downloads, matches `checksums.txt`,
   and the extracted binary self-reports `v1.0.3 commit 88cb63e`.
 - `examples/demo-broken-release.sh` with the released binary: good artifact PASS,
