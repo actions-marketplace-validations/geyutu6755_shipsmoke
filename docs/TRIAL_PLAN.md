@@ -46,12 +46,24 @@ artifacts:
         expect: { exit_code: 0, stdout_contains: ["git-graph"] }
 ```
 
-(Local spot-check executed on Windows, 2026-11-06: downloaded the real
-v0.8.3 windows tar.gz and ran the released shipsmoke v1.0.4 check against
-this config — `detected: windows/amd64`, `[PASS] git-graph.exe --version`,
-exit 0; the linux artifact correctly reported SKIP with its reason.
-Note: all three v0.8.3 assets are tar.gz, not zip as an earlier draft of
-this document claimed.)
+**Trial executed in CI, 2026-11-05/06** — workflow
+`.github/workflows/gitgraph-trial.yml` in
+[shipsmoke-integration](https://github.com/geyutu6755/shipsmoke-integration),
+dispatched against the real v0.8.3 archives
+([run 42131352979](https://github.com/geyutu6755/shipsmoke-integration/actions/runs/42131352979)):
+
+| Platform (runner) | shipsmoke gate result | Binary execution evidence |
+|---|---|---|
+| linux/amd64 (ubuntu-24.04) | `[PASS] git-graph --version (1ms)`, gate exit 0 | real extraction + real execution |
+| windows/amd64 (windows-2025) | `[PASS] git-graph.exe --version (79ms)`, gate exit 0 | real extraction + real execution |
+| macos/amd64-named asset (macos-15, arm64) | `[SKIP] artifact targets [darwin/amd64] but host is darwin/arm64` → exit 3, recorded as-is (no SKIP-as-PASS) | `file(1)`: `Mach-O 64-bit executable arm64`; a second gate pass declaring `darwin/arm64` executed it natively — `[PASS] git-graph --version (16ms)` |
+
+**Major verified finding:** git-graph v0.8.3's `macos-amd64`-named archive
+ships an **arm64** Mach-O binary. Intel-Mac users downloading that asset get
+a broken download that cannot execute — the same defect class shipsmoke
+shipped in its own v1.0.0/v1.0.1 and its platform gate now catches. The
+trial workflow records both the honest SKIP and the native-execution proof
+of the mismatch. (Not reported to git-graph maintainers; tier stays 0.)
 
 - Maintenance cost once merged: zero — the workflow runs on their existing
   release automation; no secrets, no infra.
