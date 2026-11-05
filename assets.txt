@@ -1,4 +1,0 @@
-713994644 checksums.txt
-713993864 teapot-darwin.tar.gz
-713993495 teapot-linux.tar.gz
-713994284 teapot-windows.zip
