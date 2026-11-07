@@ -281,10 +281,16 @@ ShipSmoke 会执行程序。它对可控的一切做了加固 —— Zip Slip �
 
 ## 文档
 
-- [配置参考](docs/CONFIGURATION.md) —— 完整 Schema、匹配器、CI 配方
+- [一分钟快速入门](#在-github-actions-中使用) 与教程（[Go](docs/TUTORIAL_GO.md) / [Rust](docs/TUTORIAL_RUST.md) / [C](docs/TUTORIAL_C.md)）
+- [配置参考](docs/CONFIGURATION.md) —— 完整 Schema、匹配器、CLI 参数、CI 配方
+- [三层验证模型](docs/VERIFICATION_LAYERS.md)、[供应链边界](docs/SUPPLY_CHAIN.md)
+- [案例研究](docs/CASE_STUDIES/git-graph-v0.8.3-macos-arch-mismatch.md) —— 真实 macos-amd64/arch 失配
+- [第三方接入模板](docs/THIRD_PARTY_TEMPLATE.md)、[试用计划](docs/TRIAL_PLAN.md)
 - [系统设计](docs/SYSTEM_DESIGN.md)、[威胁模型](docs/THREAT_MODEL.md)
 - [已知限制](docs/LIMITATIONS.md)、[故障排查](docs/TROUBLESHOOTING.md)
 - [验证报告](docs/VALIDATION_REPORT.md) —— 每项声明均附 CI 运行链接
+- [最终验收](docs/FINAL_ACCEPTANCE.md)、[维护指南](docs/MAINTENANCE_GUIDE.md)
+- [维护者介绍](docs/INTRODUCTION.md)、[候选项目](docs/CANDIDATES.md)、[采用跟踪](docs/ADOPTION.md)
 
 ## 开发
 

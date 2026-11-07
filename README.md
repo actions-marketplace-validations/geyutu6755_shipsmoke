@@ -386,6 +386,9 @@ existing release pipeline can only be served by the second.
 - [Limitations](docs/LIMITATIONS.md) — supported formats and honest boundaries
 - [Troubleshooting](docs/TROUBLESHOOTING.md) — common failure diagnoses
 - [Supply-chain boundaries](docs/SUPPLY_CHAIN.md) — what CI trusts and why
+- [Case study](docs/CASE_STUDIES/git-graph-v0.8.3-macos-arch-mismatch.md) — a real macos-amd64/arch-mismatch found in the wild
+- [Third-party integration template](docs/THIRD_PARTY_TEMPLATE.md) — copy-paste a gate for another project
+- [Trial plan](docs/TRIAL_PLAN.md) · [Final acceptance](docs/FINAL_ACCEPTANCE.md) · [Maintenance guide](docs/MAINTENANCE_GUIDE.md)
 - [Maintainer introduction](docs/INTRODUCTION.md) · [Candidate projects](docs/CANDIDATES.md) · [Adoption tracking](docs/ADOPTION.md)
 - [Research](docs/RESEARCH.md) — competitive landscape and name check
 - [Validation report](docs/VALIDATION_REPORT.md) — evidence per claim, with run links where a link exists
