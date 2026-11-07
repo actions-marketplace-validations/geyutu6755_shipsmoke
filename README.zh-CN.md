@@ -59,10 +59,32 @@ json report: dist/shipsmoke-report.json
 的压缩包并解压。
 
 ```bash
-# Linux / macOS 示例
+# Linux x86-64
 curl -fsSL -o shipsmoke.tar.gz \
   https://github.com/geyutu6755/shipsmoke/releases/latest/download/shipsmoke_linux_amd64.tar.gz
 tar -xzf shipsmoke.tar.gz && ./shipsmoke version
+
+# Linux ARM64
+curl -fsSL -o shipsmoke.tar.gz \
+  https://github.com/geyutu6755/shipsmoke/releases/latest/download/shipsmoke_linux_arm64.tar.gz
+tar -xzf shipsmoke.tar.gz && ./shipsmoke version
+
+# macOS Apple Silicon
+curl -fsSL -o shipsmoke.tar.gz \
+  https://github.com/geyutu6755/shipsmoke/releases/latest/download/shipsmoke_darwin_arm64.tar.gz
+tar -xzf shipsmoke.tar.gz && ./shipsmoke version
+
+# macOS Intel
+curl -fsSL -o shipsmoke.tar.gz \
+  https://github.com/geyutu6755/shipsmoke/releases/latest/download/shipsmoke_darwin_amd64.tar.gz
+tar -xzf shipsmoke.tar.gz && ./shipsmoke version
+```
+
+```powershell
+# Windows x86-64（PowerShell）
+curl.exe -fsSL -o shipsmoke.zip `
+  https://github.com/geyutu6755/shipsmoke/releases/latest/download/shipsmoke_windows_amd64.zip
+Expand-Archive shipsmoke.zip -DestinationPath . && .\shipsmoke.exe version
 ```
 
 **包管理器：**
