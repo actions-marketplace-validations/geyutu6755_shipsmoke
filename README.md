@@ -41,9 +41,18 @@ the tar.gz and skips the zip.)*
 # install (see all options below), then inside any Go CLI project:
 mkdir -p dist
 go build -o dist/mytool .                              # build
-tar -czf dist/mytool.tar.gz -C dist mytool             # package (zip on Windows)
+tar -czf dist/mytool.tar.gz -C dist mytool             # package (Linux/macOS)
 shipsmoke init --ci --stack go --name mytool           # generate .shipsmoke.yml + 3-platform CI
 shipsmoke check                                        # verify the artifact really runs
+```
+
+Windows (PowerShell) — the generated config expects `dist/mytool.zip` with
+`mytool.exe` inside, so package with:
+
+```powershell
+go build -o dist\mytool.exe .
+Compress-Archive -Path dist\mytool.exe -DestinationPath dist\mytool.zip
+shipsmoke check
 ```
 
 The generated config asserts `mytool --version` exits 0 and prints `mytool`, so
