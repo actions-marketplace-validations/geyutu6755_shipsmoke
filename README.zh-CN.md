@@ -112,7 +112,8 @@ release 工作流）。
 
 ```bash
 cd your-project
-shipsmoke init        # 生成带注释的 .shipsmoke.yml
+go build -o dist/mytool && tar -czf dist/mytool.tar.gz -C dist mytool   # 先构建并打包（check 验证的就是它）
+shipsmoke init        # 生成带注释的 .shipsmoke.yml（编辑 artifacts 指向你的发行包）
 shipsmoke validate    # 只校验配置，不执行任何程序
 shipsmoke check       # 质量门禁；退出码驱动 CI 决策
 ```
