@@ -99,11 +99,11 @@ func TestRunInitAndValidateAndCheck(t *testing.T) {
 	}
 }
 
-func TestSanitizeVersion(t *testing.T) {
-	if SanitizeVersion("") != "0.0.0-dev" {
+func TestSanitizeVersionFallback(t *testing.T) {
+	if sanitizeVersion("") != "0.0.0-dev" {
 		t.Error("empty version should fall back to dev")
 	}
-	if SanitizeVersion("v1") != "v1" {
+	if sanitizeVersion("v1") != "v1" {
 		t.Error("non-empty version must be kept")
 	}
 }

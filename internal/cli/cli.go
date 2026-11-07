@@ -512,19 +512,12 @@ func isTerminal(f *os.File) bool {
 // guessVersion is used when the binary was not built with ldflags.
 func guessVersion() string { return "0.0.0-dev" }
 
-// SanitizeVersion replaces an empty injected version with the dev fallback.
-func SanitizeVersion(v string) string {
+// sanitizeVersion replaces an empty injected version with the dev fallback.
+// Test-only helper; production version resolution lives in main.go.
+func sanitizeVersion(v string) string {
 	if strings.TrimSpace(v) == "" {
 		return guessVersion()
 	}
 	return v
 }
 
-// ConfigPathHint returns the absolute path of the default config for messages.
-func ConfigPathHint() string {
-	abs, err := filepath.Abs(config.DefaultConfigName)
-	if err != nil {
-		return config.DefaultConfigName
-	}
-	return abs
-}

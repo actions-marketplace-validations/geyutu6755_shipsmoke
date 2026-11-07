@@ -1,0 +1,6 @@
+# local build/test artifacts
+dist/
+shipsmoke
+shipsmoke.exe
+*.log
+alllogs.zip
