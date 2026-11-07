@@ -520,4 +520,3 @@ func sanitizeVersion(v string) string {
 	}
 	return v
 }
-
