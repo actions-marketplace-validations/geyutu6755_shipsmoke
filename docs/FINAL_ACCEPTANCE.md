@@ -6,7 +6,8 @@ marked NOT TESTED rather than assumed.
 
 ## Current official version
 
-**v1.0.4** — https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.4
+**v1.0.5** — https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.5
+(v1.0.4 remains available at https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.4)
 (7 assets: 6 platform archives + checksums.txt; build provenance attestations
 attached via `gh attestation verify <archive> -R geyutu6755/shipsmoke`).
 
