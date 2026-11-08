@@ -50,6 +50,26 @@ agent or the REST API.
    nothing changed for existing users.
 4. Tick the Marketplace item in docs/ADOPTION.md and note the listing URL.
 
+## Progress log (2026-11-06/08 session)
+
+- Browser session: **logged in as `geyutu6755`** and verified via the
+  in-app browser (page meta `user-login`).
+- v1.0.4 Release edit page opened: the **"Publish this release to the
+  GitHub Marketplace" checkbox was found but is disabled** until the
+  GitHub Marketplace Developer Agreement v2.4 is accepted.
+- The agreement dialog was opened and shown to the account owner
+  (screenshot taken). As of the end of the session the owner had **not
+  yet clicked "Accept Terms"** — the checkbox remains disabled.
+- Remaining: the owner accepts the agreement in the browser (the dialog
+  reopens from the "accept the GitHub Marketplace Developer Agreement"
+  button on the edit page), then the checkbox enables and the gate can be
+  completed: check the box → Primary category "Continuous integration" →
+  tag stays v1.0.4 → "Update release".
+- The browser tab was parked on
+  `https://github.com/geyutu6755/shipsmoke/releases/edit/v1.0.4` and
+  marked handoff. If the browser cookie session has expired since, sign
+  in again first — steps are otherwise identical.
+
 ## If the checkbox shows metadata warnings
 
 Fix `action.yml` per the on-page message, commit to `main`, then edit the
