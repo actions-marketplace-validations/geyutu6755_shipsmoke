@@ -1,8 +1,7 @@
 name: 'ShipSmoke'
 description: >
-  Verify that release artifacts (zip, tar.gz, standalone binaries) really
-  extract and run on the target OS, with PASS/FAIL reports and a job
-  summary. Failed checks fail the job.
+  Verify that release artifacts (zip, tar.gz, binaries) really extract
+  and run on the target OS, with PASS/FAIL reports.
 author: 'geyutu6755'
 
 branding:
