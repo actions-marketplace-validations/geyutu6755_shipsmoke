@@ -52,6 +52,14 @@ agent or the REST API.
 
 ## Progress log (2026-11-06/08 session)
 
+**STATUS: LISTED.** The action is live at
+https://github.com/marketplace/actions/shipsmoke
+(published from the v1.0.5 release, categories: Continuous integration +
+Testing, icon check-circle/blue). The listing was completed via the
+in-app browser after the account owner accepted the Marketplace
+Developer Agreement v2.4 and enabled 2FA. Screenshots taken during the
+verification are in the git history of this file.
+
 - Browser session: **logged in as `geyutu6755`** and verified via the
   in-app browser (page meta `user-login`).
 - v1.0.4 Release edit page opened: the **"Publish this release to the

@@ -86,14 +86,13 @@ for the verified evidence pattern.
 
 ## Marketplace listing status
 
-The action is **prepared but not yet listed** on the GitHub Marketplace:
-every metadata prerequisite is verified (see
-docs/MARKETPLACE_CHECKLIST.md), and the only remaining step is a one-time
-web-UI operation by the account owner (sign in → open action.yml →
-"Draft a release" → check "Publish this Action to the GitHub Marketplace"
-→ category "Continuous integration" → tag v1.0.4 → publish). It can also
-be enabled later by editing any existing release. After listing, verify
-the page and note the URL here.
+**Listed.** https://github.com/marketplace/actions/shipsmoke
+(published from the v1.0.5 release, categories: Continuous integration +
+Testing). The listing was completed via the in-app browser after the
+account owner accepted the Developer Agreement v2.4 and enabled 2FA.
+Future releases can be listed by editing the release in the browser and
+checking the "Publish this Action to the GitHub Marketplace" box (see
+docs/MARKETPLACE_CHECKLIST.md for the pre-verified checklist).
 
 ## Handling security issues
 
