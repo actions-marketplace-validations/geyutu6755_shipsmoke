@@ -1,8 +1,8 @@
 name: 'ShipSmoke'
 description: >
-  Verify that release artifacts (zip, tar.gz, standalone binaries) actually
-  extract and run on this runner's OS, with PASS/FAIL reports and a job
-  summary. Failed checks fail the job, so broken artifacts cannot ship.
+  Verify that release artifacts (zip, tar.gz, standalone binaries) really
+  extract and run on the target OS, with PASS/FAIL reports and a job
+  summary. Failed checks fail the job.
 author: 'geyutu6755'
 
 branding:
