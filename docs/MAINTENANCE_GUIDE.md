@@ -84,6 +84,17 @@ It downloads the exact assets, checks SHA-256 against `checksums.txt`,
 extracts, and runs the binary — one job per OS. Read VALIDATION_REPORT §6f
 for the verified evidence pattern.
 
+## Marketplace listing status
+
+The action is **prepared but not yet listed** on the GitHub Marketplace:
+every metadata prerequisite is verified (see
+docs/MARKETPLACE_CHECKLIST.md), and the only remaining step is a one-time
+web-UI operation by the account owner (sign in → open action.yml →
+"Draft a release" → check "Publish this Action to the GitHub Marketplace"
+→ category "Continuous integration" → tag v1.0.4 → publish). It can also
+be enabled later by editing any existing release. After listing, verify
+the page and note the URL here.
+
 ## Handling security issues
 
 - Report path: SECURITY.md (advisory or a SECURITY-labelled issue).
