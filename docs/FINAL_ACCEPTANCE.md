@@ -104,10 +104,11 @@ green (links in git log and the Actions tab).
 
 | Channel | Command | Last verified install test |
 |---|---|---|
-| Homebrew tap | `brew install geyutu6755/tap/shipsmoke` | [tap run 41892108557](https://github.com/geyutu6755/homebrew-tap/actions/runs/41892108557) (macOS brew + linux asset check) |
-| Scoop bucket | `scoop bucket add geyutu6755 https://github.com/geyutu6755/scoop-bucket` then `scoop install shipsmoke` | [bucket run 41892123219](https://github.com/geyutu6755/scoop-bucket/actions/runs/41892123219) |
-| Go | `go install github.com/geyutu6755/shipsmoke/cmd/shipsmoke@v1.0.4` | verified locally (reports v1.0.4) |
-| GitHub Release | per-platform curl examples in README | latest URL download verified (contains shipsmoke.exe) |
+| Homebrew tap | `brew install geyutu6755/tap/shipsmoke` | install-test workflow green per push |
+| Scoop bucket | `scoop bucket add geyutu6755 https://github.com/geyutu6755/scoop-bucket` then `scoop install shipsmoke` | install-test workflow green per push |
+| Go | `go install github.com/geyutu6755/shipsmoke/cmd/shipsmoke@v1.0.5` | verified locally (reports v1.0.5) |
+| GitHub Release | per-platform curl examples in README | latest URL download verified |
+| **GitHub Marketplace** | `uses: geyutu6755/shipsmoke@v1` | **[Listed](https://github.com/marketplace/actions/shipsmoke)** (v1.0.5, CI: Continuous integration + Testing) |
 
 ## Known limitations (unchanged, documented)
 
