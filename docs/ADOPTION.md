@@ -48,11 +48,22 @@ action or the CLI into their own CI, on their own initiative.
 Tier 3 usage that persists: repeated workflow runs over ≥ 3 months, or an
 external maintainer explicitly stating they adopted it (with link).
 
+## Distribution channels (not adoption)
+
+These are infrastructure for future users, not evidence of adoption.
+
+| Channel | URL | Status |
+|---|---|---|
+| GitHub Marketplace | [marketplace/actions/shipsmoke](https://github.com/marketplace/actions/shipsmoke) | **Listed** (v1.0.5, CI + Testing categories) |
+| Homebrew tap | [homebrew-tap](https://github.com/geyutu6755/homebrew-tap) | install-test green |
+| Scoop bucket | [scoop-bucket](https://github.com/geyutu6755/scoop-bucket) | install-test green |
+| Go install | `go install …@v1.0.5` | verified |
+
 ## Current status
 
 | Tier | State |
 |---|---|
-| 0 | one trial: termide 0.48.0, verified locally on Windows (see below) |
+| 0 | termide 0.48.0, verified locally on Windows; git-graph v0.8.3 verified in CI (see below) |
 | 1 | yes — every release |
 | 2 | yes — harness exists and its **latest** run is green on all three OSes. Not "all green since v1.0.2": the harness history contains failed runs (including one `verify against shipsmoke v1.0.3` run) while the workflow itself was being fixed. Wording corrected 2026-11-01 after checking the run list. |
 | 3 | none yet (honest baseline) |
@@ -65,9 +76,8 @@ external maintainer explicitly stating they adopted it (with link).
 | 2026-11-01 | termide/termide 0.48.0 | `termide-0.48.0-x86_64-pc-windows-msvc.zip` (downloaded from their Release) | windows/amd64, released shipsmoke v1.0.3 | extracted, then executed `termide.exe --version` and `--help` | PASS, 2 checks, exit 0; linux/darwin artifacts reported SKIP with reason |
 | 2026-11-05 | termide/termide 0.48.0 (re-run with the new release) | same two assets as above, re-downloaded | windows/amd64, released shipsmoke **v1.0.4** | `--version` + `--help` on windows; truncation-refusal control: halving the zip flipped the gate to exit 1, restoring it back to exit 0 | PASS, 2 checks; truncated copy correctly rejected; linux/darwin SKIP with reason |
 | 2026-11-05/06 | teapot (our own fixture) in shipsmoke-integration | teapot v0.0.2 — teapot-linux.tar.gz, teapot-darwin.tar.gz, teapot-windows.zip | all three OS jobs, released shipsmoke **v1.0.4** via the generated `init --ci --published` gate | release:published auto-trigger + workflow_dispatch; SHA-256 against checksums.txt, then extraction and execution | good assets: 3/3 OS PASS; truncated teapot-linux: gate failed with exact SHA-256 mismatch, workflow failure. (Tier 0 — our own fixture, not adoption.) |
-| 2026-11-08 | GitHub Marketplace listing | [marketplace/actions/shipsmoke](https://github.com/marketplace/actions/shipsmoke) | 2026-11-06 | git-bahn/git-graph v0.8.3 (real published archives) |
-| 2026-11-08 | **GitHub Marketplace listing** | [marketplace/actions/shipsmoke](https://github.com/marketplace/actions/shipsmoke) | N/A (channel) | Listed (CI + Testing), version v1.0.5 | git-graph-v0.8.3-{linux,windows}-amd64.tar.gz (+ macos-amd64 archive inspected) | ubuntu-24.04, windows-2025, macos-15; released shipsmoke **v1.0.4** | trial workflow dispatched against the real Release: linux `[PASS] git-graph --version (1ms)`, windows `[PASS] git-graph.exe --version (79ms)`; macos-amd64 archive **verified to contain an arm64 binary** (file(1) + header detection) — gate SKIP recorded honestly, native darwin/arm64 pass `[PASS] git-graph --version (16ms)` proves the naming/content mismatch. (Tier 0 — maintainers not contacted.) |
 | 2026-11-01 | same, truncated to 50% | local copy (simulated partial upload — **not** a claim about their release) | windows/amd64 | extraction only | ERROR `not a valid zip file`, exit 1 |
+| 2026-11-05/06 | git-graph v0.8.3 (real published archives) | git-graph-v0.8.3-{linux,windows}-amd64.tar.gz (+ macos-amd64 inspected) | ubuntu-24.04, windows-2025, macos-15; released shipsmoke **v1.0.4** | trial workflow dispatched against the real Release: linux `[PASS] git-graph --version (1ms)`, windows `[PASS] git-graph.exe --version (79ms)`; macos-amd64 archive **verified to contain an arm64 binary** — gate SKIP recorded honestly, native darwin/arm64 pass `[PASS] git-graph --version (16ms)` proves the naming/content mismatch | linux/windows PASS; macos SKIP (honest) + native PASS; **real upstream defect found and documented in CASE_STUDIES** |
 
 No contact was made with the termide maintainers and nothing here implies they
 know about ShipSmoke.
