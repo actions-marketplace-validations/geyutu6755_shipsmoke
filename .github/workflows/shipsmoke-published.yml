@@ -11,6 +11,10 @@ name: shipsmoke — verify published release
 #   pre-publish   build -> package -> verify -> publish   (blocks a bad release)
 #   post-release  download published asset -> verify      (detects a bad release)
 #
+# The download step uses bounded polling to handle the race between the
+# release:published event and asset upload completion: softprops/gh-release
+# creates the Release first, then uploads assets asynchronously.
+#
 # Third-party actions are pinned to commit SHAs; see docs/SUPPLY_CHAIN.md.
 on:
   release:
@@ -85,18 +89,52 @@ jobs:
               exit 1 ;;
           esac
 
-      - name: Download the published asset
+      # The release:published event fires when the Release object is created,
+      # but assets are uploaded asynchronously by the publishing workflow.
+      # This step polls until the asset is downloadable (bounded: 12 × 30s =
+      # 6 minutes), then fails clearly if the asset is still missing.
+      - name: Download the published asset (with bounded retry)
         shell: bash
         env:
           TAG: ${{ steps.tag.outputs.tag }}
           ASSET: ${{ matrix.asset }}
           REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p dist
           URL="https://github.com/${REPO}/releases/download/${TAG}/${ASSET}"
-          echo "downloading $URL"
-          curl -fsSL --retry 3 --retry-delay 2 -o "dist/$ASSET" "$URL"
+          API_URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
+          DOWNLOADED=false
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            echo "download attempt ${attempt}/12: $URL"
+            if curl -fsSL --retry 3 --retry-delay 2 -o "dist/$ASSET" "$URL" 2>/dev/null; then
+              DOWNLOADED=true
+              echo "downloaded on attempt ${attempt}"
+              break
+            fi
+            HTTP_CODE=$(curl -sL -o /dev/null -w '%{http_code}' "$URL" 2>/dev/null) || HTTP_CODE="000"
+            echo "  attempt ${attempt}: HTTP $HTTP_CODE"
+            if [ "$HTTP_CODE" = "404" ]; then
+              # Asset not yet available — check if the release itself exists.
+              REL_STATUS=$(curl -sL -o /dev/null -w '%{http_code}' "$API_URL") || REL_STATUS="000"
+              if [ "$REL_STATUS" = "404" ]; then
+                echo "::error::release tag ${TAG} does not exist (HTTP 404); asset will never appear"
+                exit 1
+              fi
+              # Release exists but asset not uploaded yet — keep waiting.
+              echo "  release exists but asset not yet uploaded; waiting 30s before retry"
+            else
+              # Non-404 HTTP error (network, auth, rate limit) — log and retry.
+              echo "  HTTP $HTTP_CODE; waiting 30s before retry"
+            fi
+            sleep 30
+          done
+          if [ "$DOWNLOADED" != "true" ]; then
+            echo "::error::asset $ASSET not available after 12 attempts over ~6 minutes; refusing to proceed"
+            echo "This means the asset was never uploaded or the upload failed permanently."
+            exit 1
+          fi
           ls -l "dist/$ASSET"
 
       - name: Verify the download against checksums.txt
@@ -126,7 +164,7 @@ jobs:
       - name: Verify the downloaded artifact really runs
         uses: geyutu6755/shipsmoke@v1
         with:
-          version: v1.0.4
+          version: v1.0.5
           config: .shipsmoke-published.yml
           artifact: ${{ matrix.artifact }}
           report: dist/shipsmoke-report.json
