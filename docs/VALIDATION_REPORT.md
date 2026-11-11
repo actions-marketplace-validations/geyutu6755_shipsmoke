@@ -321,6 +321,31 @@ path was triggered by a real `release: published` on v0.0.2 and is no longer
 "dispatch-only". None of these runs modify v1.0.4's history or assets; no
 new shipsmoke release was cut for this round.
 
+## 6g. v1.0.5 release:published gate — bounded retry fix and verification
+
+**Root cause of the release:published gate failure** (run
+[42446601085](https://github.com/geyutu6755/shipsmoke/actions/runs/42446601085)):
+the `release: published` event fires when `softprops/action-gh-release`
+creates the Release object, but assets are uploaded asynchronously
+afterwards. The download step's `curl --retry 3` only retries transient
+network errors — a 404 (asset not yet uploaded) was treated as permanent
+and failed the job immediately with curl exit codes 22/56.
+
+**Fix** (`749e720`): the download step now polls for up to 12 attempts
+× 30s = ~6 minutes, distinguishing between:
+- release tag doesn't exist at all → immediate clear failure
+- asset not yet uploaded → keep retrying within the bounded window
+- asset available → download and proceed to checksum verification
+
+**Verification**:
+| Gate | Run | Result |
+|---|---|---|
+| workflow_dispatch tag=v1.0.5, 3 OS | [43051972933](https://github.com/geyutu6755/shipsmoke/actions/runs/43051972933) | 3/3 OS PASS (SHA-256 + extraction + execution) |
+| workflow_dispatch tag=v1.0.5 (2nd run) | [43048333476](https://github.com/geyutu6755/shipsmoke/actions/runs/43048333476) | 3/3 OS PASS |
+| CI on a3a5fbd (main) | [43051868233](https://github.com/geyutu6755/shipsmoke/actions/runs/43051868233) rerun | PASS (macos-15 cancelled by runner starvation, rerun green) |
+| Marketplace page | [marketplace/actions/shipsmoke](https://github.com/marketplace/actions/shipsmoke) | HTTP 200, publicly visible |
+| v1.0.5 binary version output | local verification | `shipsmoke v1.0.5 (windows/amd64) commit: de0b6a1` |
+
 ## 7. Final acceptance conclusion
 
 **ACCEPTED — ShipSmoke v1.0.3 (current release) is released and verified.**

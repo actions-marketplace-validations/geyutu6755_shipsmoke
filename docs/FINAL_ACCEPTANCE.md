@@ -7,11 +7,11 @@ marked NOT TESTED rather than assumed.
 ## Current official version
 
 **v1.0.5** — https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.5
-(v1.0.4 remains available at https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.4)
+(v1.0.4 remains available at https://github.com/geyutu6755/shipsmoke/releases/tag/v1.0.4; all prior versions preserved)
 (7 assets: 6 platform archives + checksums.txt; build provenance attestations
 attached via `gh attestation verify <archive> -R geyutu6755/shipsmoke`).
 
-v1.0.4 stays the stable release: the final review found **no defects that
+v1.0.5 is the current stable release: the final review found **no defects that
 require changing the shipped product** (see "Review outcome" below). All
 closeout commits are docs, tests and evidence only.
 
