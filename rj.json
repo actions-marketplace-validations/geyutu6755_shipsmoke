@@ -1,0 +1,329 @@
+{
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 128626720778,
+      "run_id": 42446601085,
+      "workflow_name": "shipsmoke — verify published release",
+      "head_branch": "v1.0.5",
+      "run_url": "https://api.github.com/repos/geyutu6755/shipsmoke/actions/runs/42446601085",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVeUy_c8AAAAd8sAACg",
+      "head_sha": "de0b6a1dffc3ed20d8bc12589653f081fb8bc3e0",
+      "url": "https://api.github.com/repos/geyutu6755/shipsmoke/actions/jobs/128626720778",
+      "html_url": "https://github.com/geyutu6755/shipsmoke/actions/runs/42446601085/job/128626720778",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-11-08T04:23:10Z",
+      "started_at": "2026-11-08T04:23:12Z",
+      "completed_at": "2026-11-08T04:23:18Z",
+      "name": "shipsmoke-linux",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-08T04:23:13Z",
+          "completed_at": "2026-11-08T04:23:14Z"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-08T04:23:14Z",
+          "completed_at": "2026-11-08T04:23:15Z"
+        },
+        {
+          "name": "Resolve release tag",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-08T04:23:15Z",
+          "completed_at": "2026-11-08T04:23:15Z"
+        },
+        {
+          "name": "Refuse unfilled asset placeholders",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-08T04:23:15Z",
+          "completed_at": "2026-11-08T04:23:15Z"
+        },
+        {
+          "name": "Download the published asset",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 5,
+          "started_at": "2026-11-08T04:23:15Z",
+          "completed_at": "2026-11-08T04:23:15Z"
+        },
+        {
+          "name": "Verify the download against checksums.txt",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-11-08T04:23:15Z",
+          "completed_at": "2026-11-08T04:23:15Z"
+        },
+        {
+          "name": "Verify the downloaded artifact really runs",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-11-08T04:23:15Z",
+          "completed_at": "2026-11-08T04:23:15Z"
+        },
+        {
+          "name": "Upload verification report",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-08T04:23:15Z",
+          "completed_at": "2026-11-08T04:23:15Z"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-11-08T04:23:15Z",
+          "completed_at": "2026-11-08T04:23:15Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-11-08T04:23:15Z",
+          "completed_at": "2026-11-08T04:23:16Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/geyutu6755/shipsmoke/check-runs/128626720778",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000001612,
+      "runner_name": "GitHub Actions 1000001612",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 128626720902,
+      "run_id": 42446601085,
+      "workflow_name": "shipsmoke — verify published release",
+      "head_branch": "v1.0.5",
+      "run_url": "https://api.github.com/repos/geyutu6755/shipsmoke/actions/runs/42446601085",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVeUy_c8AAAAd8sAAhg",
+      "head_sha": "de0b6a1dffc3ed20d8bc12589653f081fb8bc3e0",
+      "url": "https://api.github.com/repos/geyutu6755/shipsmoke/actions/jobs/128626720902",
+      "html_url": "https://github.com/geyutu6755/shipsmoke/actions/runs/42446601085/job/128626720902",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-11-08T04:23:11Z",
+      "started_at": "2026-11-08T04:23:12Z",
+      "completed_at": "2026-11-08T04:23:22Z",
+      "name": "shipsmoke-windows",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-08T04:23:13Z",
+          "completed_at": "2026-11-08T04:23:14Z"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-08T04:23:14Z",
+          "completed_at": "2026-11-08T04:23:18Z"
+        },
+        {
+          "name": "Resolve release tag",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-08T04:23:18Z",
+          "completed_at": "2026-11-08T04:23:18Z"
+        },
+        {
+          "name": "Refuse unfilled asset placeholders",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-08T04:23:18Z",
+          "completed_at": "2026-11-08T04:23:18Z"
+        },
+        {
+          "name": "Download the published asset",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 5,
+          "started_at": "2026-11-08T04:23:18Z",
+          "completed_at": "2026-11-08T04:23:19Z"
+        },
+        {
+          "name": "Verify the download against checksums.txt",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-11-08T04:23:19Z",
+          "completed_at": "2026-11-08T04:23:19Z"
+        },
+        {
+          "name": "Verify the downloaded artifact really runs",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-11-08T04:23:19Z",
+          "completed_at": "2026-11-08T04:23:19Z"
+        },
+        {
+          "name": "Upload verification report",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-08T04:23:19Z",
+          "completed_at": "2026-11-08T04:23:19Z"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-11-08T04:23:19Z",
+          "completed_at": "2026-11-08T04:23:20Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-11-08T04:23:20Z",
+          "completed_at": "2026-11-08T04:23:20Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/geyutu6755/shipsmoke/check-runs/128626720902",
+      "labels": [
+        "windows-2025"
+      ],
+      "runner_id": 1000001613,
+      "runner_name": "GitHub Actions 1000001613",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 128626720963,
+      "run_id": 42446601085,
+      "workflow_name": "shipsmoke — verify published release",
+      "head_branch": "v1.0.5",
+      "run_url": "https://api.github.com/repos/geyutu6755/shipsmoke/actions/runs/42446601085",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVeUy_c8AAAAd8sAAww",
+      "head_sha": "de0b6a1dffc3ed20d8bc12589653f081fb8bc3e0",
+      "url": "https://api.github.com/repos/geyutu6755/shipsmoke/actions/jobs/128626720963",
+      "html_url": "https://github.com/geyutu6755/shipsmoke/actions/runs/42446601085/job/128626720963",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-11-08T04:23:11Z",
+      "started_at": "2026-11-08T04:23:12Z",
+      "completed_at": "2026-11-08T04:23:20Z",
+      "name": "shipsmoke-macos",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-08T04:23:13Z",
+          "completed_at": "2026-11-08T04:23:14Z"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-08T04:23:14Z",
+          "completed_at": "2026-11-08T04:23:16Z"
+        },
+        {
+          "name": "Resolve release tag",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-08T04:23:16Z",
+          "completed_at": "2026-11-08T04:23:16Z"
+        },
+        {
+          "name": "Refuse unfilled asset placeholders",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-08T04:23:16Z",
+          "completed_at": "2026-11-08T04:23:16Z"
+        },
+        {
+          "name": "Download the published asset",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 5,
+          "started_at": "2026-11-08T04:23:16Z",
+          "completed_at": "2026-11-08T04:23:17Z"
+        },
+        {
+          "name": "Verify the download against checksums.txt",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-11-08T04:23:17Z",
+          "completed_at": "2026-11-08T04:23:17Z"
+        },
+        {
+          "name": "Verify the downloaded artifact really runs",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-11-08T04:23:17Z",
+          "completed_at": "2026-11-08T04:23:17Z"
+        },
+        {
+          "name": "Upload verification report",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-08T04:23:17Z",
+          "completed_at": "2026-11-08T04:23:17Z"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-11-08T04:23:17Z",
+          "completed_at": "2026-11-08T04:23:18Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-11-08T04:23:18Z",
+          "completed_at": "2026-11-08T04:23:18Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/geyutu6755/shipsmoke/check-runs/128626720963",
+      "labels": [
+        "macos-15"
+      ],
+      "runner_id": 1000001614,
+      "runner_name": "GitHub Actions 1000001614",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}
